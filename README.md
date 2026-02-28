@@ -1,5 +1,9 @@
 # tidmon
 
+> [!WARNING]
+> **This app is for personal, educational, and archival purposes only.**
+> It is not affiliated with Tidal. Users must ensure their use complies with Tidal's terms of service and all applicable local copyright laws. Downloaded content is for personal use and may not be shared or redistributed. The developer assumes no responsibility for misuse of this app.
+
 A powerful command-line tool for monitoring TIDAL artists, tracking new releases, and automating your music library management.
 
 `tidmon` helps you keep your local music collection perfectly in sync with your favorite artists' discographies on TIDAL. It maintains a local database of artists you want to follow, checks for new albums, and provides a robust downloader to save them to your machine.
@@ -62,9 +66,3 @@ For a full list of all available commands, options, and advanced usage examples,
 `tidmon` is highly customizable. To learn how to configure download paths, file naming templates, download quality, and more, check out the configuration guide:
 
 **[--> Configuration Guide (CONFIG_GUIDE.md)](CONFIG_GUIDE.md)**
-
----
-
-## Warning
-
-This app is for personal use only and is not affiliated with Tidal. Users must ensure their use complies with Tidal's terms of service and local copyright laws. Downloaded tracks are for personal use and may not be shared or redistributed. The developer assumes no responsibility for misuse of this app.
