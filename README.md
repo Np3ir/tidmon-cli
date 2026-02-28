@@ -62,3 +62,9 @@ For a full list of all available commands, options, and advanced usage examples,
 `tidmon` is highly customizable. To learn how to configure download paths, file naming templates, download quality, and more, check out the configuration guide:
 
 **[--> Configuration Guide (CONFIG_GUIDE.md)](CONFIG_GUIDE.md)**
+
+---
+
+## Warning
+
+This app is for personal use only and is not affiliated with Tidal. Users must ensure their use complies with Tidal's terms of service and local copyright laws. Downloaded tracks are for personal use and may not be shared or redistributed. The developer assumes no responsibility for misuse of this app.
