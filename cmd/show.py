@@ -51,6 +51,16 @@ class Show:
 
     # ── Artists ──────────────────────────────────────────────────────────────
 
+    def close(self) -> None:
+        """Close the database connection."""
+        self.db.close()
+
+    def __enter__(self) -> "Show":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
     def show_artists(self, export_csv: bool = False, export_path: str = None,
                      target: str = "artists"):
         """
@@ -246,6 +256,11 @@ class Show:
             date_range = f" [{since or ''}→{until or 'now'}]"
             filter_label += date_range
 
+        # Count summary for footer
+        total       = len(albums)
+        downloaded  = sum(1 for a in albums if a.get("downloaded"))
+        pending     = total - downloaded
+
         table = Table(
             box=box.SIMPLE_HEAVY,
             show_header=True,
@@ -253,20 +268,38 @@ class Show:
             show_edge=False,
             pad_edge=False,
         )
-        table.add_column("Artist", style="bold", min_width=20)
-        table.add_column("Title", min_width=25)
-        table.add_column("Type", style="dim")
-        table.add_column("Released", style="dim")
-        table.add_column("ID", style="dim", justify="right")
-        table.add_column("DL", justify="center")
+        table.add_column("Artist",   style="bold",      min_width=20)
+        table.add_column("Title",                       min_width=25)
+        table.add_column("Type",     style="dim",       width=8)
+        table.add_column("Released", style="dim",       width=12)
+        table.add_column("Tracks",   justify="right",   width=7,  style="dim")
+        table.add_column("Explicit", justify="center",  width=4)
+        table.add_column("ID",       justify="right",   style="dim")
+        table.add_column("Downloaded", justify="center", width=5)
 
         for a in albums:
-            dl_mark = "[green]✓[/]" if a.get("downloaded") else "[dim]·[/]"
+            dl_mark      = "[green]✓[/]"  if a.get("downloaded")    else "[dim red]✗[/]"
+            explicit_mark = "[yellow]E[/]" if a.get("explicit")       else ""
+            tracks        = str(a.get("number_of_tracks") or "?")
+            album_type    = (a.get("album_type") or "?").upper()[:7]
+
+            # Color album type for quick scanning
+            type_colors = {
+                "ALBUM":    "cyan",
+                "EP":       "yellow",
+                "SINGLE":   "magenta",
+                "COMPILAT": "blue",
+            }
+            color = type_colors.get(album_type, "dim")
+            type_cell = f"[{color}]{album_type}[/]"
+
             table.add_row(
                 a["artist_name"],
                 a["title"],
-                a.get("album_type", "?"),
+                type_cell,
                 (a.get("release_date") or "")[:10],
+                tracks,
+                explicit_mark,
                 str(a["album_id"]),
                 dl_mark,
             )
@@ -274,4 +307,8 @@ class Show:
         console.print()
         console.print(Rule(f"[bold]Albums{filter_label}", style="cyan"))
         console.print(table)
-        console.print(f"[dim]Total: {len(albums)} album(s)[/]\n")
+        console.print(
+            f"[dim]Total: {total}  "
+            f"[green]Downloaded: {downloaded}[/dim]  "
+            f"[dim][yellow]Pending: {pending}[/][/dim]\n"
+        )

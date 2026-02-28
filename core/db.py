@@ -464,11 +464,26 @@ class Database:
             logger.error(f"Failed to clear playlists: {e}")
             return False
     
-    def close(self):
-        """Close database connection"""
+    def close(self) -> None:
+        """Close the database connection."""
         if self.connection:
             self.connection.close()
+            self.connection = None
             logger.debug("Database connection closed")
+
+    # ── Context manager support ───────────────────────────────────────────────
+
+    def __enter__(self) -> "Database":
+        """Allow usage as: with Database() as db: ..."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Close the connection automatically when exiting the with block."""
+        self.close()
+
+    def __del__(self) -> None:
+        """Safety net: close the connection if the object is garbage collected."""
+        self.close()
 
 
     def get_album_counts_per_artist(self) -> dict:

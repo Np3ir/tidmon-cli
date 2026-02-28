@@ -6,6 +6,7 @@ from datetime import datetime
 from tidmon.core.db import Database
 from tidmon.core.config import Config
 from tidmon.core.auth import get_session
+from tidmon.core.auth import TidalSession
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,10 @@ logger = logging.getLogger(__name__)
 class Refresh:
     """Check monitored artists and playlists for new releases."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: Config = None, session: TidalSession = None):
         self.config = config or Config()
         self.db = Database()
-        self.session = get_session()
+        self.session = session or get_session()
         self._api = None
         self.new_releases = []
         self.new_playlist_tracks = []
@@ -27,17 +28,27 @@ class Refresh:
             self._api = self.session.get_api()
         return self._api
 
+    def close(self) -> None:
+        """Close the database connection."""
+        self.db.close()
+
+    def __enter__(self) -> "Refresh":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
     def refresh(
-        self,
-        artist: str = None,
-        artist_id: int = None,
-        refresh_artists: bool = True,
-        refresh_playlists: bool = True,
-        since: str = None,
-        until: str = None,
-        album_since: str = None,
-        album_until: str = None,
-        download: bool = False,
+            self,
+            artist: str = None,
+            artist_id: int = None,
+            refresh_artists: bool = True,
+            refresh_playlists: bool = True,
+            since: str = None,
+            until: str = None,
+            album_since: str = None,
+            album_until: str = None,
+            download: bool = False,
     ):
         """Refresh monitored content and detect new releases."""
         try:
@@ -87,9 +98,9 @@ class Refresh:
             logger.warning("No artists to refresh")
             return
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  REFRESHING {len(artists)} ARTIST(S)")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
         for artist_obj in artists:
             self._refresh_artist(artist_obj, album_since, album_until)
 
@@ -116,7 +127,7 @@ class Refresh:
                 logger.error("Invalid --album-since date format. Use YYYY-MM-DD.")
                 print("  (invalid date format)")
                 return
-        
+
         if album_until:
             try:
                 until_date = datetime.strptime(album_until, "%Y-%m-%d").date()
@@ -156,9 +167,9 @@ class Refresh:
         if not playlists:
             return
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  REFRESHING {len(playlists)} PLAYLIST(S)")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         for playlist in playlists:
             self._refresh_playlist(playlist)
@@ -194,9 +205,9 @@ class Refresh:
             print(f"  ✗ error: {e}")
 
     def _show_summary(self):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("  REFRESH SUMMARY")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         if not self.new_releases and not self.new_playlist_tracks:
             print("  No new releases or playlist changes detected.\n")
@@ -220,7 +231,7 @@ class Refresh:
                     print(f"      → {track.title} by {artists}")
             print()
 
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
     def _download_new_releases(self):
         """Auto-download all newly detected releases."""

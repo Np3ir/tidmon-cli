@@ -6,6 +6,7 @@ from tidmon.core.models.resources import Artist, Album
 from tidmon.core.utils import url as url_utils
 from tidmon.core.auth import get_session
 from typing import List, Union, Optional
+from tidmon.core.auth import TidalSession
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,10 @@ logger = logging.getLogger(__name__)
 class Monitor:
     """Handle artist monitoring operations"""
     
-    def __init__(self, config=None):
+    def __init__(self, config: Config = None, session: TidalSession = None):
         self.config = config or Config()
         self.db = Database()
-        self.session = get_session()
+        self.session = session or get_session()
         self._api = None
 
     @property
@@ -26,6 +27,16 @@ class Monitor:
             self._api = self.session.get_api()
         return self._api
     
+    def close(self) -> None:
+        """Close the database connection."""
+        self.db.close()
+
+    def __enter__(self) -> "Monitor":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
     def add_by_name(self, artist_name: str) -> bool:
         """Add artist to monitoring by name"""
         # First, check if an artist with a similar name is already monitored

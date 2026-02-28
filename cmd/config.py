@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 
 
 class ConfigCommand:
-    def __init__(self, config=None):
+    def __init__(self, config: Config = None):
         self.config = config or Config()
 
     def show(self):

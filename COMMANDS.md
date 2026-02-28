@@ -35,9 +35,14 @@ The core of `tidmon`. Allows you to add, remove, and list the artists and playli
     *   Accepts artist names (e.g., "Daft Punk"), artist IDs, artist URLs, and playlist URLs.
     *   `--file, -f`: Imports a list of artists/playlists from a text file (one per line).
 *   **`tidmon monitor remove [IDENTIFIERS...]`**: Removes artists from monitoring by name or ID.
-*   **`tidmon monitor list`**: Shows a list of all monitored artists and playlists.
 *   **`tidmon monitor clear`**: Removes **all** artists from monitoring (asks for confirmation).
 *   **`tidmon monitor export -o [FILE]`**: Exports artist IDs and playlist URLs to a file.
+
+### `monitor playlist`: Playlist-specific Commands
+
+*   **`tidmon monitor playlist add <URL>`**: Adds a playlist to monitoring.
+*   **`tidmon monitor playlist remove <URL>`**: Removes a playlist from monitoring.
+*   **`tidmon monitor playlist list`**: Lists all monitored playlists.
 
 ---
 
@@ -56,6 +61,7 @@ Checks TIDAL for new albums or tracks from the artists and playlists you are mon
 *   `--until <YYYY-MM-DD>`: Refreshes only artists added *before* a date.
 *   `--album-since <YYYY-MM-DD>`: Processes only albums released *after* a date.
 *   `--album-until <YYYY-MM-DD>`: Processes only albums released *before* a date.
+*   `--no-artists` / `--no-playlists`: Skips refreshing artists or playlists, respectively.
 
 ---
 
@@ -63,14 +69,12 @@ Checks TIDAL for new albums or tracks from the artists and playlists you are mon
 
 The advanced download system of `tidmon`.
 
-*   **`tidmon download album <ALBUM_ID> [--force]`**: Downloads a full album by its ID.
-*   **`tidmon download artist [ID | "NAME"] [--force]`**: Downloads the complete discography of an artist.
-*   **`tidmon download track <TRACK_ID> [--force]`**: Downloads a single track by its ID.
-*   **`tidmon download url <TIDAL_URL> [--force]`**: Downloads from a TIDAL URL (album, artist, track, etc.).
-*   **`tidmon download monitored [OPTIONS]`**: Downloads all pending albums from monitored artists.
-    *   Options: `--force`, `--since <DATE>`, `--until <DATE>`, `--dry-run`
-*   **`tidmon download all [OPTIONS]`**: Downloads **all** albums from the database, regardless of their status.
-    *   Options: `--force`, `--dry-run`, `--resume`, `--since <DATE>`, `--until <DATE>`
+*   **`tidmon download url <URL>`**: Downloads from a TIDAL URL (artist, album, track, video, playlist).
+*   **`tidmon download artist <ID|NAME>`**: Downloads the complete discography of an artist.
+*   **`tidmon download album <ALBUM_ID>`**: Downloads a full album by its ID.
+*   **`tidmon download track <TRACK_ID>`**: Downloads a single track by its ID.
+*   **`tidmon download monitored`**: Downloads all pending albums from monitored artists.
+*   **`tidmon download all`**: Downloads **all** albums from the database, regardless of their status.
 
 **Common Download Options:**
 
@@ -87,13 +91,19 @@ Lets you inspect the local database of artists and albums.
 
 *   **`tidmon show artists`**: Lists all monitored artists.
 *   **`tidmon show releases [--days <N> | --future]`**: Shows recent or upcoming releases.
-    *   `--days <N>`: Show releases from the last N days (default: 7).
-    *   `--future`: Show upcoming releases dated in the future.
 *   **`tidmon show albums [OPTIONS]`**: Shows albums from the database with powerful filters.
     *   `--artist <NAME|ID>`: Filter by a specific artist.
     *   `--pending`: Show only albums that have not been downloaded yet.
     *   `--since <DATE>` / `--until <DATE>`: Filter albums by release date.
-    *   `--export <FILE>`: Export the filtered list of album URLs to a text file, formatted for other tools like `tiddl`.
+    *   `--export <FILE>`: Export the filtered list of album URLs to a text file.
+
+---
+
+## `search`: Search on TIDAL
+
+*   **`tidmon search <QUERY> [OPTIONS]`**: Searches TIDAL for artists, albums, or tracks.
+    *   `--type, -t [artists|albums|tracks]`: Specifies the type of content to search for.
+    *   `--limit, -l <N>`: Sets the maximum number of results to return.
 
 ---
 
@@ -115,4 +125,4 @@ Manages the creation and restoration of backups of your data (database and confi
 *   **`tidmon backup create [-o FILE]`**: Creates a new backup archive.
 *   **`tidmon backup restore <FILE>`**: Restores data from a backup file.
 *   **`tidmon backup list`**: Lists all available backups in the default directory.
-*   **`tidmon backup delete <FILE>`**: Deletes a specific backup file.
+*   **`tidmon backup delete [<FILE> | --keep <N>]`**: Deletes a specific backup or all except the N most recent.

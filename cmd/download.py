@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Optional, List
 from collections import Counter
+from tidmon.core.auth import TidalSession
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -161,10 +162,10 @@ class Download:
 
     """Integrated download manager for tidemon"""
 
-    def __init__(self, verbose: bool = False, config=None):
+    def __init__(self, verbose: bool = False, config: Config = None, session: TidalSession = None):
         self.config = config or Config()
         self.db = Database()
-        self.session = get_session()
+        self.session = session or get_session()
         self._api = None
         self.verbose = verbose
         
@@ -221,6 +222,16 @@ class Download:
             elif task.status == DownloadStatus.FAILED:
                 err = f" — {task.error_message}" if task.error_message else ""
                 self.ui.print_result(f"[red]Failed{err}", title, None)
+
+    def close(self) -> None:
+        """Close the database connection."""
+        self.db.close()
+
+    def __enter__(self) -> "Download":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def _cleanup_partial_files(self) -> None:
         """Elimina archivos .part que hayan quedado de descargas interrumpidas."""

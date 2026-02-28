@@ -2,6 +2,7 @@ import logging
 from tidmon.core.db import Database
 from tidmon.core.config import Config
 from tidmon.core.auth import get_session
+from tidmon.core.auth import TidalSession
 
 logger = logging.getLogger(__name__)
 
@@ -9,10 +10,10 @@ logger = logging.getLogger(__name__)
 class Search:
     """Handle artist/album/track search with interactive selection."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: Config = None, session: TidalSession = None):
         self.config = config or Config()
         self.db = Database()
-        self.session = get_session()
+        self.session = session or get_session()
         self._api = None
 
     @property
@@ -20,6 +21,16 @@ class Search:
         if self._api is None:
             self._api = self.session.get_api()
         return self._api
+
+    def close(self) -> None:
+        """Close the database connection."""
+        self.db.close()
+
+    def __enter__(self) -> "Search":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def search_artists(self, query: str, limit: int = 10):
         """Search for artists and optionally add to monitoring."""

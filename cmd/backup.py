@@ -15,11 +15,21 @@ logger = logging.getLogger(__name__)
 class Backup:
     """Handle backup and restore of tidmon data."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: Config = None):
         self.config = config or Config()
         self.appdata_dir = get_appdata_dir()
         self.backups_dir = self.appdata_dir / "backups"
         self.backups_dir.mkdir(exist_ok=True)
+
+    def close(self) -> None:
+        """Close the database connection."""
+        self.db.close()
+
+    def __enter__(self) -> "Backup":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def create(self, output_path: str = None) -> bool:
         """Create a backup archive of config + database."""
