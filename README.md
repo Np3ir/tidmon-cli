@@ -22,7 +22,7 @@ A powerful command-line tool for monitoring TIDAL artists, tracking new releases
 
 2.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/YourUsername/tidmon.git
+    git clone https://github.com/Np3ir/tidmon-cli.git
     cd tidmon
     ```
 
@@ -36,19 +36,19 @@ A powerful command-line tool for monitoring TIDAL artists, tracking new releases
 1.  **Authenticate with TIDAL**:
     *   Run the interactive login process. This will open a browser window for you to authorize the application.
     ```bash
-    python cli.py auth
+    python tidmon auth
     ```
 
 2.  **Monitor an Artist**:
     *   Start tracking an artist by their name or TIDAL URL.
     ```bash
-    python cli.py monitor add "Daft Punk"
+    python tidmon monitor add "Daft Punk"
     ```
 
 3.  **Check for New Releases & Download**:
     *   `tidmon` will check for any new albums from your monitored artists and automatically download them.
     ```bash
-    python cli.py refresh --download
+    python tidmon refresh --download
     ```
 
 ## Command Reference
