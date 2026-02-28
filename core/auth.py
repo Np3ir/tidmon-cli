@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class TidalSession:
-    """Gestiona la sesión de la API de TIDAL."""
+    """Manages the TIDAL API session."""
 
     def __init__(self):
         self.api: Optional[TidalAPI] = None
@@ -17,30 +17,30 @@ class TidalSession:
 
     def get_api(self) -> TidalAPI:
         """
-        Devuelve una instancia válida de TidalAPI.
+        Returns a valid TidalAPI instance.
 
-        Lazy initialization: current_token (que puede hacer un refresh HTTP)
-        solo se llama en el primer acceso, cuando la instancia aún no existe.
-        En accesos posteriores se devuelve la instancia cacheada directamente.
+        Lazy initialization: current_token (which can make an HTTP refresh)
+        is only called on first access, when the instance does not yet exist.
+        On subsequent accesses, the cached instance is returned directly.
 
-        El token se mantiene fresco por dos mecanismos ya encapsulados en el cliente:
-          1. Reactivo: on_token_expiry callback al recibir un 401.
-          2. Proactivo: current_token refresca el token dentro del propio callback
-             antes de devolverlo, si expires_soon() es verdadero.
+        The token is kept fresh by two mechanisms already encapsulated in the client:
+          1. Reactive: on_token_expiry callback upon receiving a 401.
+          2. Proactive: current_token refreshes the token within the callback itself
+             before returning it, if expires_soon() is true.
 
-        Nota: si en el futuro se añade logout/login dentro de la misma TidalSession
-        sin recrearla, el token del cliente quedaría desactualizado hasta el próximo
-        401. En la arquitectura actual (TidalSession se crea una vez por ejecución
-        del CLI) esto no es un problema práctico.
+        Note: if in the future logout/login is added within the same TidalSession
+        without recreating it, the client's token would become outdated until the next
+        401. In the current architecture (TidalSession is created once per CLI execution)
+        this is not a practical problem.
         """
-        # Early return: evita llamar a current_token innecesariamente
+        # Early return: avoids calling current_token unnecessarily
         if self.api is not None:
             return self.api
 
-        # Primera creación: verificar autenticación y construir la instancia
+        # First creation: verify authentication and build the instance
         token = self.auth_client.current_token
         if not token:
-            raise ConnectionError("No autenticado. Por favor, ejecuta 'tidmon auth' primero.")
+            raise ConnectionError("Not authenticated. Please run 'tidmon auth' first.")
 
         logger.debug("Creating new TidalAPI instance with refresh callback.")
 
@@ -83,5 +83,5 @@ class TidalSession:
 
 
 def get_session() -> TidalSession:
-    """Factory global para obtener la TidalSession."""
+    """Global factory to get the TidalSession."""
     return TidalSession()

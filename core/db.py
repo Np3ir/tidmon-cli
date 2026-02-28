@@ -469,3 +469,18 @@ class Database:
         if self.connection:
             self.connection.close()
             logger.debug("Database connection closed")
+
+
+    def get_album_counts_per_artist(self) -> dict:
+        """Returns {artist_id: album_count} for all artists in one query."""
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute('''
+                SELECT artist_id, COUNT(*) as cnt
+                FROM albums
+                GROUP BY artist_id
+            ''')
+            return {row["artist_id"]: row["cnt"] for row in cursor.fetchall()}
+        except Exception as e:
+            logger.error(f"Failed to get album counts: {e}")
+            return {}

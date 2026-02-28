@@ -161,8 +161,8 @@ class Download:
 
     """Integrated download manager for tidemon"""
 
-    def __init__(self, verbose: bool = False):
-        self.config = Config()
+    def __init__(self, verbose: bool = False, config=None):
+        self.config = config or Config()
         self.db = Database()
         self.session = get_session()
         self._api = None
@@ -355,11 +355,11 @@ class Download:
     def download_url(self, url: str, force: bool = False):
         self._run_async(self._download_url_async(url, force=force))
 
-    def download_monitored(self, force: bool = False, since: str = None, until: str = None, dry_run: bool = False, export: str = None, also_download: bool = False):
-        self._run_async(self._download_monitored_async(force=force, since=since, until=until, dry_run=dry_run, export=export, also_download=also_download))
+    def download_monitored(self, force: bool = False, since: str = None, until: str = None, dry_run: bool = False):
+        self._run_async(self._download_monitored_async(force=force, since=since, until=until, dry_run=dry_run))
 
-    def download_all(self, force: bool = False, dry_run: bool = False, resume: bool = False, since: str = None, until: str = None, export: str = None, also_download: bool = False):
-        self._run_async(self._download_all_async(force=force, dry_run=dry_run, resume=resume, since=since, until=until, export=export, also_download=also_download))
+    def download_all(self, force: bool = False, dry_run: bool = False, resume: bool = False, since: str = None, until: str = None):
+        self._run_async(self._download_all_async(force=force, dry_run=dry_run, resume=resume, since=since, until=until))
 
     # --- Private Asynchronous Methods (Core Logic) ---
 
@@ -587,52 +587,69 @@ class Download:
         elif type_ == TidalType.PLAYLIST:
             await self._import_artists_from_playlist_async(id_val)
 
-    def _export_album_list(self, albums: list, export_path: str) -> None:
+    async def _process_album_batch(
+        self,
+        albums: list,
+        force: bool = False,
+        resume: bool = False,
+        dry_run: bool = False,
+        summary_title: str = "Download",
+    ) -> None:
         """
-        Export a list of album dicts as tiddl download commands.
+        Process a list of album dicts fetched from the database.
 
-        Each line follows the format:
-            tiddl download url https://tidal.com/album/{album_id}
+        Shared by _download_monitored_async and _download_all_async to avoid
+        duplicating the loop, dry-run display, resume logic and summary print.
 
-        The file is UTF-8 encoded so it can be piped directly into a shell.
+        Args:
+            albums:        List of album dicts from db.get_albums().
+            force:         Re-download already downloaded files.
+            resume:        Skip albums already marked as downloaded in the DB.
+            dry_run:       Print what would be downloaded without doing it.
+            summary_title: Label shown in the final summary rule.
         """
-        from pathlib import Path
-        path = Path(export_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        lines = []
-        for album in albums:
-            aid = album.get('album_id', '')
-            lines.append(f"tiddl download url https://tidal.com/album/{aid}")
-        path.write_text("\n".join(lines), encoding="utf-8")
-        Console().print(f"[green]📄 Exported {len(lines)} album(s) to[/] {path}")
-
-    async def _download_monitored_async(self, force: bool = False, since: str = None, until: str = None, dry_run: bool = False, export: str = None, also_download: bool = False):
-        pending = self.db.get_albums(include_downloaded=False, since=since, until=until)
-        if not pending:
-            self.ui.print("[green]✅ Nothing to download.")
-            return
-
-        if export:
-            self._export_album_list(pending, export)
-            if not also_download:
-                return  # export-only mode: skip download
+        # Apply resume filter (skip albums already downloaded unless force)
+        to_download = [
+            a for a in albums
+            if not (resume and not force and a.get("downloaded") == 1)
+        ]
+        skipped_for_resume = len(albums) - len(to_download)
 
         if dry_run:
-            self.ui.print(f"[dim]\n-- DRY RUN: {len(pending)} pending album(s) would be downloaded --")
-            for i, album in enumerate(pending, 1):
-                self.ui.print(f"  [dim][{i}/{len(pending)}][/] {album['artist_name']} — {album['title']}")
+            self.ui.print(
+                f"[dim]\n-- DRY RUN: {len(to_download)} album(s) would be downloaded"
+                + (f" ({skipped_for_resume} skipped by --resume)" if skipped_for_resume else "")
+                + " --[/]"
+            )
+            for i, album in enumerate(to_download, 1):
+                self.ui.print(f"  [dim][{i}/{len(to_download)}][/] {album['artist_name']} — {album['title']}")
             self.ui.print("[dim]\nRun without --dry-run to start the download.[/]")
             return
-        
-        global_stats = Counter()
-        self.ui.print(f"[bold]🔄 Downloading {len(pending)} pending album(s)...[/]\n")
-        for i, album in enumerate(pending, 1):
-            self.ui.print(f"[dim]-> ALBUM [{i}/{len(pending)}]")
-            album_stats = await self._download_album_async(album['album_id'], force=force)
-            global_stats.update(album_stats)
-        self._print_summary("Monitored Download", global_stats)
 
-    async def _download_all_async(self, force: bool = False, dry_run: bool = False, resume: bool = False, since: str = None, until: str = None, export: str = None, also_download: bool = False):
+        total = len(to_download)
+        self.ui.print(f"[bold]🔄 Downloading {total} album(s)...[/]\n")
+
+        global_stats = Counter()
+        for i, album in enumerate(to_download, 1):
+            self.ui.print(f"[dim]-> ALBUM [{i}/{total}]")
+            album_stats = await self._download_album_async(album["album_id"], force=force)
+            global_stats.update(album_stats)
+
+        if skipped_for_resume > 0:
+            self.ui.print(f"\n[dim]🔄 Skipped {skipped_for_resume} album(s) due to --resume.[/]")
+
+        self._print_summary(summary_title, global_stats)
+
+    async def _download_monitored_async(self, force: bool = False, since: str = None, until: str = None, dry_run: bool = False):
+        """Fetch pending (not yet downloaded) albums and pass them to _process_album_batch."""
+        albums = self.db.get_albums(include_downloaded=False, since=since, until=until)
+        if not albums:
+            self.ui.print("[green]✅ Nothing to download.")
+            return
+        await self._process_album_batch(albums, force=force, dry_run=dry_run, summary_title="Monitored Download")
+
+    async def _download_all_async(self, force: bool = False, dry_run: bool = False, resume: bool = False, since: str = None, until: str = None):
+        """Fetch all albums from the DB and pass them to _process_album_batch."""
         albums = self.db.get_albums(include_downloaded=True, since=since, until=until)
         if not albums:
             date_hint = ""
@@ -643,50 +660,9 @@ class Download:
                 date_hint = f" matching date filter ({', '.join(parts)})"
             self.ui.print(f"[green]✅ No albums in the database{date_hint} to download.")
             return
-
-        if export:
-            self._export_album_list(albums, export)
-            if not also_download:
-                return  # export-only mode: skip download
-
         if force and resume:
-            self.ui.print("[yellow]⚠️  --force y --resume especificados juntos. --force tiene precedencia; se ignorará --resume.")
-        
-        if dry_run:
-            to_download = [a for a in albums if not (resume and not force and a.get('downloaded') == 1)]
-            skipped_count = len(albums) - len(to_download)
-            
-            self.ui.print(f"[dim]\n-- DRY RUN: {len(to_download)} album(s) would be downloaded ({skipped_count} skipped by --resume) --[/]")
-            
-            for i, album in enumerate(to_download, 1):
-                self.ui.print(f"  [dim][{i}/{len(to_download)}][/] {album['artist_name']} — {album['title']}")
-            self.ui.print("[dim]\nRun without --dry-run to start the download.[/]")
-            return
-
-        global_stats = Counter()
-        skipped_for_resume = 0
-        active_count = 0
-        pending_count = sum(1 for a in albums if not (resume and not force and a.get('downloaded') == 1))
-
-        self.ui.print(f"[bold]🔄 Downloading {pending_count} of {len(albums)} album(s)...[/]\n")
-        
-        for i, album in enumerate(albums, 1):
-            if resume and not force and album.get('downloaded') == 1:
-                logger.info(f"Resuming: skipping already downloaded album ID {album['album_id']}")
-                if self.verbose:
-                    self.ui.print(f"[dim]⏭️  [{i}/{len(albums)}] {album['artist_name']} — {album['title']} (skipped)[/]")
-                skipped_for_resume += 1
-                continue
-            
-            active_count += 1
-            self.ui.print(f"[dim]-> ALBUM [{active_count}/{pending_count}]")
-            album_stats = await self._download_album_async(album['album_id'], force=force)
-            global_stats.update(album_stats)
-
-        if skipped_for_resume > 0:
-            self.ui.print(f"\n[dim]🔄 Skipped {skipped_for_resume} albums due to --resume.[/]")
-
-        self._print_summary("Total Download", global_stats)
+            self.ui.print("[yellow]⚠️  --force and --resume specified together. --force takes precedence; --resume will be ignored.")
+        await self._process_album_batch(albums, force=force, resume=resume, dry_run=dry_run, summary_title="Total Download")
 
     async def _import_artists_from_playlist_async(self, playlist_uuid: str):
         self.ui.print(f"\n[bold]🔍 Fetching playlist {playlist_uuid}...")

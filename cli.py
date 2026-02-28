@@ -5,6 +5,7 @@ CLI entry point (mirroring deemon's structure for TIDAL)
 import logging
 import sys
 import click
+from tidmon.core.config import Config
 from pathlib import Path
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ def cli(ctx, verbose, debug):
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
     ctx.obj['debug'] = debug
+    ctx.obj['config'] = Config()
 
 
 # ── auth ──────────────────────────────────────────────────────────────────────
@@ -96,7 +98,7 @@ def monitor_add(identifiers, from_file):
         return
 
     from tidmon.cmd.monitor import Monitor
-    m = Monitor()
+    m = Monitor(config=ctx.obj.get('config'))
 
     if from_file:
         m.add_from_file(from_file)
@@ -122,7 +124,7 @@ def monitor_add(identifiers, from_file):
 def monitor_remove(identifiers):
     """Remove artist(s) from monitoring."""
     from tidmon.cmd.monitor import Monitor
-    m = Monitor()
+    m = Monitor(config=ctx.obj.get('config'))
     for identifier in identifiers:
         m.remove_artist(identifier)
 
@@ -131,17 +133,10 @@ def monitor_remove(identifiers):
 def monitor_clear():
     """Remove all monitored artists."""
     from tidmon.cmd.monitor import Monitor
-    Monitor().clear_artists()
+    Monitor(config=ctx.obj.get('config')).clear_artists()
 
 
-@monitor.command('list')
-@click.option('--artists', 'target', flag_value='artists', default=True)
-@click.option('--playlists', 'target', flag_value='playlists')
-@click.option('--all', 'target', flag_value='all')
-def monitor_list(target):
-    """List monitored artists and/or playlists."""
-    from tidmon.cmd.monitor import Monitor
-    Monitor().list_items(target)
+
 
 
 @monitor.group('playlist')
@@ -155,7 +150,7 @@ def monitor_playlist():
 def playlist_add(url):
     """Add a playlist to monitoring."""
     from tidmon.cmd.monitor import Monitor
-    Monitor().add_playlist(url)
+    Monitor(config=ctx.obj.get('config')).add_playlist(url)
 
 
 @monitor_playlist.command('remove')
@@ -163,14 +158,14 @@ def playlist_add(url):
 def playlist_remove(url):
     """Remove a playlist from monitoring."""
     from tidmon.cmd.monitor import Monitor
-    Monitor().remove_playlist(url)
+    Monitor(config=ctx.obj.get('config')).remove_playlist(url)
 
 
 @monitor_playlist.command('list')
 def playlist_list():
     """List all monitored playlists."""
     from tidmon.cmd.monitor import Monitor
-    Monitor().list_playlists()
+    Monitor(config=ctx.obj.get('config')).list_playlists()
 
 
 @monitor.command('export')
@@ -179,7 +174,7 @@ def playlist_list():
 def monitor_export(output):
     """Export monitored artists and playlists to a file."""
     from tidmon.cmd.monitor import Monitor
-    Monitor().export_to_file(output)
+    Monitor(config=ctx.obj.get('config')).export_to_file(output)
 
 
 # ── refresh ───────────────────────────────────────────────────────────────────
@@ -197,7 +192,7 @@ def monitor_export(output):
 def refresh(artist, artist_id, skip_artists, skip_playlists, download, since, until, album_since, album_until):
     """Check monitored artists for new releases."""
     from tidmon.cmd.refresh import Refresh
-    Refresh().refresh(
+    Refresh(config=ctx.obj.get('config')).refresh(
         artist=artist,
         artist_id=artist_id,
         refresh_artists=not skip_artists,
@@ -225,7 +220,7 @@ def download():
 def download_url(ctx, url, force):
     """Download from a TIDAL URL (artist, album, track, video, playlist)."""
     from tidmon.cmd.download import Download
-    Download(verbose=ctx.obj.get('verbose', False)).download_url(url, force=force)
+    Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_url(url, force=force)
 
 
 @download.command('artist')
@@ -235,7 +230,7 @@ def download_url(ctx, url, force):
 def download_artist(ctx, identifier, force):
     """Download full discography for an artist (name or ID)."""
     from tidmon.cmd.download import Download
-    dl = Download(verbose=ctx.obj.get('verbose', False))
+    dl = Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config'))
     try:
         artist_id = int(identifier)
         dl.download_artist(artist_id=artist_id, force=force)
@@ -250,7 +245,7 @@ def download_artist(ctx, identifier, force):
 def download_album(ctx, album_id, force):
     """Download an album by ID."""
     from tidmon.cmd.download import Download
-    Download(verbose=ctx.obj.get('verbose', False)).download_album(album_id, force=force)
+    Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_album(album_id, force=force)
 
 
 @download.command('track')
@@ -260,7 +255,7 @@ def download_album(ctx, album_id, force):
 def download_track(ctx, track_id, force):
     """Download a track by ID."""
     from tidmon.cmd.download import Download
-    Download(verbose=ctx.obj.get('verbose', False)).download_track(track_id, force=force)
+    Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_track(track_id, force=force)
 
 
 @download.command('monitored')
@@ -269,12 +264,10 @@ def download_track(ctx, track_id, force):
 @click.option('--since', default=None, help='Only albums released since date (YYYY-MM-DD).')
 @click.option('--until', default=None, help='Only albums released until date (YYYY-MM-DD).')
 @click.option('--dry-run', is_flag=True, default=False, help='Show what would be downloaded without actually downloading.')
-@click.option('--export', default=None, metavar='FILE', help='Export album list to a .txt file (e.g. --export albums.txt).')
-@click.option('--download', 'also_download', is_flag=True, default=False, help='Also download when --export is set (default: export only).')
-def download_monitored(ctx, force, since, until, dry_run, export, also_download):
+def download_monitored(ctx, force, since, until, dry_run):
     """Download pending albums for all monitored artists."""
     from tidmon.cmd.download import Download
-    Download(verbose=ctx.obj.get('verbose', False)).download_monitored(force=force, since=since, until=until, dry_run=dry_run, export=export, also_download=also_download)
+    Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_monitored(force=force, since=since, until=until, dry_run=dry_run)
 
 
 @download.command('all')
@@ -284,12 +277,10 @@ def download_monitored(ctx, force, since, until, dry_run, export, also_download)
 @click.option('--resume', is_flag=True, default=False, help='Resume an interrupted download, skipping completed albums.')
 @click.option('--since', default=None, help='Only process albums released on or after this date (YYYY-MM-DD).')
 @click.option('--until', default=None, help='Only process albums released on or before this date (YYYY-MM-DD).')
-@click.option('--export', default=None, metavar='FILE', help='Export album list to a .txt file (e.g. --export albums.txt).')
-@click.option('--download', 'also_download', is_flag=True, default=False, help='Also download when --export is set (default: export only).')
-def download_all(ctx, force, dry_run, resume, since, until, export, also_download):
+def download_all(ctx, force, dry_run, resume, since, until):
     """Download all albums from the database."""
     from tidmon.cmd.download import Download
-    Download(verbose=ctx.obj.get('verbose', False)).download_all(force=force, dry_run=dry_run, resume=resume, since=since, until=until, export=export, also_download=also_download)
+    Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_all(force=force, dry_run=dry_run, resume=resume, since=since, until=until)
 
 
 # ── search ────────────────────────────────────────────────────────────────────
@@ -303,7 +294,7 @@ def download_all(ctx, force, dry_run, resume, since, until, export, also_downloa
 def search(query, search_type, limit):
     """Search TIDAL for artists, albums, or tracks."""
     from tidmon.cmd.search import Search
-    s = Search()
+    s = Search(config=ctx.obj.get('config'))
     if search_type == 'artists':
         s.search_artists(query, limit=limit)
     elif search_type == 'albums':
@@ -321,53 +312,41 @@ def show():
 
 
 @show.command('artists')
-@click.option('--csv', 'export_csv', is_flag=True, help='Export as CSV.')
+@click.option('--artists', 'target', flag_value='artists', default=True,
+              help='Show monitored artists (default).')
+@click.option('--playlists', 'target', flag_value='playlists',
+              help='Show monitored playlists instead.')
+@click.option('--all', 'target', flag_value='all',
+              help='Show both artists and playlists.')
+@click.option('--csv', 'export_csv', is_flag=True, help='Export artists as CSV.')
 @click.option('--output', '-o', default=None, help='Output file path for CSV.')
-def show_artists(export_csv, output):
-    """Show all monitored artists."""
+@click.pass_context
+def show_artists(ctx, target, export_csv, output):
+    """Show monitored artists and/or playlists."""
     from tidmon.cmd.show import Show
-    Show().show_artists(export_csv=export_csv, export_path=output)
+    Show().show_artists(export_csv=export_csv, export_path=output, target=target)
 
 
 @show.command('releases')
 @click.option('--days', '-d', default=30, show_default=True, help='Number of days to look back.')
 @click.option('--future', '-f', is_flag=True, help='Show upcoming releases instead.')
-def show_releases(days, future):
+@click.option('--export', default=None, metavar='FILE', help='Export to file: .csv for spreadsheet, any other ext for tiddl commands.')
+def show_releases(days, future, export):
     """Show recent or upcoming releases."""
     from tidmon.cmd.show import Show
-    Show().show_releases(days=days, future=future)
+    Show().show_releases(days=days, future=future, export=export)
 
 
 @show.command('albums')
 @click.option('--artist', '-a', default=None, help='Filter by artist name or ID.')
 @click.option('--pending', is_flag=True, help='Only show not yet downloaded.')
-def show_albums(artist, pending):
+@click.option('--since', default=None, metavar='DATE', help='Only albums released on or after DATE (YYYY-MM-DD).')
+@click.option('--until', default=None, metavar='DATE', help='Only albums released on or before DATE (YYYY-MM-DD).')
+@click.option('--export', default=None, metavar='FILE', help='Export to file: .csv for spreadsheet, any other ext for tiddl commands.')
+def show_albums(artist, pending, since, until, export):
     """Show albums in the database."""
-    from tidmon.core.db import Database
-    db = Database()
-    artist_id = None
-    if artist:
-        try:
-            artist_id = int(artist)
-        except ValueError:
-            row = db.get_artist_by_name(artist)
-            if row:
-                artist_id = row['artist_id']
-            else:
-                print(f"\n  Artist '{artist}' not found.\n")
-                return
-
-    albums = db.get_albums(artist_id=artist_id, include_downloaded=not pending)
-    if not albums:
-        print("\n  No albums found.\n")
-        return
-
-    print(f"\n  ALBUMS ({len(albums)})\n")
-    for a in albums:
-        dl = " [✓]" if a.get('downloaded') else ""
-        print(f"  • {a['artist_name']} — {a['title']}{dl}")
-        print(f"    Type: {a.get('album_type', '?')}  |  Released: {a.get('release_date', '?')[:10]}  |  ID: {a['album_id']}")
-    print()
+    from tidmon.cmd.show import Show
+    Show().show_albums(artist=artist, pending=pending, since=since, until=until, export=export)
 
 
 # ── config ────────────────────────────────────────────────────────────────────
@@ -422,7 +401,7 @@ def backup():
 def backup_create(output):
     """Create a backup of the database and config."""
     from tidmon.cmd.backup import Backup
-    Backup().create(output_path=output)
+    Backup(config=ctx.obj.get('config')).create(output_path=output)
 
 
 @backup.command('restore')
@@ -430,14 +409,14 @@ def backup_create(output):
 def backup_restore(path):
     """Restore from a backup archive."""
     from tidmon.cmd.backup import Backup
-    Backup().restore(path)
+    Backup(config=ctx.obj.get('config')).restore(path)
 
 
 @backup.command('list')
 def backup_list():
     """List available backups."""
     from tidmon.cmd.backup import Backup
-    Backup().list_backups()
+    Backup(config=ctx.obj.get('config')).list_backups()
 
 
 @backup.command('delete')
@@ -447,7 +426,7 @@ def backup_list():
 def backup_delete(path, keep_last):
     """Delete a backup or trim old ones."""
     from tidmon.cmd.backup import Backup
-    Backup().delete(backup_path=path, keep_last=keep_last)
+    Backup(config=ctx.obj.get('config')).delete(backup_path=path, keep_last=keep_last)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

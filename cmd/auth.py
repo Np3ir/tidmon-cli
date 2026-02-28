@@ -6,44 +6,44 @@ logger = logging.getLogger(__name__)
 
 
 class Auth:
-    """Maneja la autenticación y el estado de la sesión."""
+    """Handles authentication and session status."""
 
     def __init__(self):
         self.client = build_auth_client()
 
     def login(self):
-        """Inicia el flujo de autenticación por dispositivo."""
+        """Initiates the device authentication flow."""
         try:
             self.client.device_flow()
         except Exception as e:
-            logger.error(f"Fallo en la autenticación: {e}", exc_info=True)
-            print(f"\n✗ Error durante el login: {e}")
+            logger.error(f"Authentication failed: {e}", exc_info=True)
+            print(f"\n✗ Error during login: {e}")
 
     def logout(self):
-        """Cierra la sesión y limpia el token guardado."""
+        """Logs out and clears the saved token."""
         self.client.logout()
-        print("\n✓ Sesión cerrada. El token ha sido eliminado.\n")
+        print("\n✓ Logged out. The token has been deleted.\n")
 
     def status(self):
-        """Muestra el estado actual de la autenticación."""
-        print("\n--- ESTADO DE LA AUTENTICACIÓN ---")
+        """Displays the current authentication status."""
+        print("\n--- AUTHENTICATION STATUS ---")
         token = self.client.current_token
 
         if not token or not token.user_data:
-            print("Estado:  No autenticado")
-            print("\nEjecuta 'tidmon auth' para iniciar sesión.")
+            print("Status:  Not authenticated")
+            print("\nRun 'tidmon auth' to log in.")
             return
 
-        print("Estado:    Autenticado ✓")
-        print(f"Usuario:   {token.user_data.get('username', 'Desconocido')}")
-        print(f"País:      {token.user_data.get('countryCode', 'N/A')}")
+        print("Status:    Authenticated ✓")
+        print(f"User:      {token.user_data.get('username', 'Unknown')}")
+        print(f"Country:   {token.user_data.get('countryCode', 'N/A')}")
 
         if token.is_expired:
-            print("Token:     EXPIRADO. Se intentará refrescar en la próxima operación.")
+            print("Token:     EXPIRED. It will be refreshed on the next operation.")
         else:
             remaining = token.time_remaining
-            days  = remaining.days
+            days = remaining.days
             hours, rem = divmod(remaining.seconds, 3600)
-            mins, _    = divmod(rem, 60)
-            print(f"Token:     Expira en {days} días, {hours} horas y {mins} minutos.")
-        print("-----------------------------------")
+            mins, _ = divmod(rem, 60)
+            print(f"Token:     Expires in {days} days, {hours} hours, and {mins} minutes.")
+        print("---------------------------------")

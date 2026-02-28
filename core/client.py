@@ -29,7 +29,7 @@ T = TypeVar("T", bound=BaseModel)
 
 API_URL = "https://api.tidal.com/v1"
 API_V1_URL = "https://api.tidal.com/v1"
-API_V2_URL = "https://api.tidal.com/v2"  # Para Feed y Activity API
+API_V2_URL = "https://api.tidal.com/v2"  # For Feed and Activity API
 MAX_RETRIES = 5
 RETRY_DELAY = 2
 
@@ -37,7 +37,7 @@ log = getLogger(__name__)
 
 
 class TidalClientImproved:
-    """Cliente HTTP para la API de TIDAL."""
+    """HTTP client for the TIDAL API."""
 
     def __init__(
         self,

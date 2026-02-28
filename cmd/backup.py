@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 class Backup:
     """Handle backup and restore of tidmon data."""
 
-    def __init__(self):
-        self.config = Config()
+    def __init__(self, config=None):
+        self.config = config or Config()
         self.appdata_dir = get_appdata_dir()
         self.backups_dir = self.appdata_dir / "backups"
         self.backups_dir.mkdir(exist_ok=True)

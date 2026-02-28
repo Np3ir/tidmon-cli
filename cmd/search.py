@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 class Search:
     """Handle artist/album/track search with interactive selection."""
 
-    def __init__(self):
-        self.config = Config()
+    def __init__(self, config=None):
+        self.config = config or Config()
         self.db = Database()
         self.session = get_session()
         self._api = None

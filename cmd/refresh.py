@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class Refresh:
     """Check monitored artists and playlists for new releases."""
 
-    def __init__(self):
-        self.config = Config()
+    def __init__(self, config=None):
+        self.config = config or Config()
         self.db = Database()
         self.session = get_session()
         self._api = None
