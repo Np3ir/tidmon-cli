@@ -56,5 +56,3 @@ A powerful command-line tool for monitoring TIDAL artists, tracking new releases
 For a full list of all available commands, options, and advanced usage examples, please see the complete guide:
 
 **[--> Full Command Reference (COMMANDS.md)](COMMANDS.md)**
-
-
