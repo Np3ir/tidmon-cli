@@ -33,6 +33,7 @@ from tidmon.core.utils.ffmpeg import extract_flac, fix_mp4_faststart, convert_to
 from tidmon.core.utils.format import format_template
 from tidmon.core.utils.cover import Cover
 from tidmon.core.utils.metadata import add_track_metadata, add_video_metadata
+from tidmon.core.utils.deezer import get_genre_from_deezer
 from tidmon.core.utils.url import parse_url, TidalType
 from tidmon.core.auth import get_session
 
@@ -332,11 +333,13 @@ class Download:
                     txt_path = task.output_path.with_suffix(".txt")
                     if txt_path.exists():
                         lyrics_text = txt_path.read_text(encoding="utf-8")
-                # Fix 6 — pass genre from album/track
+                # Fix 6 — pass genre from album/track, fallback to Deezer if missing
                 genre = (
                     getattr(track.album, "genre", None)
                     or getattr(album, "genre", None)
                 )
+                if not genre and track.isrc:
+                    genre = get_genre_from_deezer(track.isrc)
                 add_track_metadata(
                     path=task.output_path,
                     track=track,
@@ -469,6 +472,8 @@ class Download:
                                 getattr(track.album, "genre", None)
                                 or getattr(album, "genre", None)
                             )
+                            if not genre and track.isrc:
+                                genre = get_genre_from_deezer(track.isrc)
                             add_track_metadata(
                                 path=task.output_path,
                                 track=track,

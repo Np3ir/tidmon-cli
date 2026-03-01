@@ -27,7 +27,7 @@ A powerful command-line tool for monitoring TIDAL artists, tracking new releases
 2.  **Clone the Repository**:
     ```bash
     git clone https://github.com/Np3ir/tidmon-cli.git
-    cd tidmon
+    cd tidmon-cli
     ```
 
 3.  **Install Dependencies**:
