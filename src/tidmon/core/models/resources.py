@@ -40,7 +40,8 @@ class Album(BaseModel):
     media_metadata: Optional[MediaMetadata] = Field(None, alias='mediaMetadata')
     genre: Optional[str] = None
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class Track(BaseModel):
@@ -65,7 +66,8 @@ class Track(BaseModel):
     stream_start_date: Optional[datetime] = Field(None, alias='streamStartDate')
     allow_streaming: Optional[bool] = Field(True, alias='allowStreaming')
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class Video(BaseModel):
@@ -84,7 +86,8 @@ class Video(BaseModel):
     quality: Optional[str] = None
     allow_streaming: Optional[bool] = Field(True, alias='allowStreaming')
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class Playlist(BaseModel):
@@ -102,7 +105,8 @@ class Playlist(BaseModel):
     image: Optional[str] = None
     popularity: Optional[int] = None
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class Contributor(BaseModel):
@@ -115,7 +119,8 @@ class TrackCredits(BaseModel):
     source: Optional[str] = None
     contributors: List[Contributor] = []
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class TrackMix(BaseModel):
@@ -128,7 +133,8 @@ class ArtistBio(BaseModel):
     text: Optional[str] = None
     summary: Optional[str] = None
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class ArtistLinks(BaseModel):
@@ -142,7 +148,8 @@ class ArtistTopTracks(BaseModel):
     total_number_of_items: int = Field(..., alias='totalNumberOfItems')
     items: List[Track] = []
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class TrackQuality(str, Enum):
@@ -167,7 +174,8 @@ class TrackStream(BaseModel):
     bit_depth: Optional[int] = Field(None, alias='bitDepth')
     sample_rate: Optional[int] = Field(None, alias='sampleRate')
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class VideoStream(BaseModel):
@@ -176,7 +184,8 @@ class VideoStream(BaseModel):
     manifest: str
     manifest_mime_type: str = Field(..., alias='manifestMimeType')
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 TRACK_QUALITY_LITERAL = Literal["low", "normal", "high", "max"]

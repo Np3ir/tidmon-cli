@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Union, Any
 
 from .resources import Album, Artist, Track, Video, Playlist, Contributor
@@ -15,7 +15,7 @@ class AlbumItems(BaseModel):
     total_number_of_items: int = Field(..., alias='totalNumberOfItems')
     items: List[Track] = []
 
-    @field_validator('items', mode='before')
+    @validator('items', pre=True)
     @classmethod
     def unwrap_items(cls, v):
         if isinstance(v, list):
@@ -28,7 +28,8 @@ class AlbumItems(BaseModel):
             return result
         return v
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class ArtistAlbumsItems(BaseModel):
@@ -37,7 +38,8 @@ class ArtistAlbumsItems(BaseModel):
     total_number_of_items: int = Field(..., alias='totalNumberOfItems')
     items: List[Album] = []
 
-    model_config = {"populate_by_name": True}
+    class Config:
+        allow_population_by_field_name = True
 
 
 class ArtistSearchItems(BaseModel):
