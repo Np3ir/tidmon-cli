@@ -15,7 +15,7 @@ console = Console()
 
 
 def _export_tiddl(albums: list, path: Path) -> None:
-    """Escribe un archivo .txt con comandos tiddl download url."""
+    """Write a .txt file with tiddl download url commands."""
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"tiddl download url https://tidal.com/album/{a['album_id']}" for a in albums]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -23,7 +23,7 @@ def _export_tiddl(albums: list, path: Path) -> None:
 
 
 def _export_csv(albums: list, path: Path) -> None:
-    """Escribe un archivo .csv con todos los campos del álbum."""
+    """Write a .csv file with all album fields."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = ["album_id", "artist_name", "title", "album_type", "release_date",
               "number_of_tracks", "downloaded"]
@@ -35,7 +35,7 @@ def _export_csv(albums: list, path: Path) -> None:
 
 
 def _auto_export(albums: list, export_path: str) -> None:
-    """Detecta formato por extensión: .csv → CSV, cualquier otro → tiddl txt."""
+    """Detects format by extension: .csv -> CSV, any other -> tiddl txt."""
     path = Path(export_path)
     if path.suffix.lower() == ".csv":
         _export_csv(albums, path)

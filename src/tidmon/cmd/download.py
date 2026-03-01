@@ -235,7 +235,7 @@ class Download:
         self.close()
 
     def _cleanup_partial_files(self) -> None:
-        """Elimina archivos .part que hayan quedado de descargas interrumpidas."""
+        """Deletes .part files left over from interrupted downloads."""
         download_root = self.config.download_path() or "Downloads"
         video_root    = self.config.download_path(media_type='video') or "Downloads/Videos"
         removed = 0
@@ -246,11 +246,11 @@ class Download:
                     try:
                         f.unlink()
                         removed += 1
-                        logger.debug(f"Eliminado archivo parcial: {f}")
+                        logger.debug(f"Removed partial file: {f}")
                     except Exception as e:
-                        logger.warning(f"No se pudo eliminar {f}: {e}")
+                        logger.warning(f"Could not remove {f}: {e}")
         if removed:
-            self.ui.console.print(f"[dim]🧹 {removed} archivo(s) parcial(es) eliminado(s).[/]")
+            self.ui.console.print(f"[dim]🧹 {removed} partial file(s) cleaned up.[/]")
 
     def _run_async(self, coro):
         """Wrapper to run async functions, handle auth errors, and clean up resources."""
@@ -266,21 +266,21 @@ class Download:
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
             asyncio.run(managed_run())
         except KeyboardInterrupt:
-            # Ctrl+C — cerrar Live si está activo y limpiar archivos parciales
+            # Ctrl+C — stop Live display and clean up partial files
             try:
                 self.ui.stop()
             except Exception:
                 pass
-            self.ui.console.print("\n[yellow]⚠️  Descarga interrumpida por el usuario.[/]")
+            self.ui.console.print("\n[yellow]⚠️  Download interrupted by user.[/]")
             self._cleanup_partial_files()
         except ConnectionError as e:
             logger.error(f"Authentication failed: {e}")
-            self.ui.print(f"[red]\n❌ Error de autenticación:[/] {e}")
-            self.ui.print("   Ejecuta [bold]tidmon auth[/] para iniciar sesión.")
+            self.ui.print(f"[red]\n❌ Authentication error:[/] {e}")
+            self.ui.print("   Run [bold]tidmon auth[/] to log in.")
         except Exception as e:
             logger.error(f"Unexpected error: {e}", exc_info=True)
-            self.ui.print(f"[red]\n❌ Error inesperado:[/] {e}")
-            self.ui.print("   Revisa [dim]~/.tidmon/logs/tidmon.log[/] para más detalles.")
+            self.ui.print(f"[red]\n❌ Unexpected error:[/] {e}")
+            self.ui.print("   Check [dim]~/.tidmon/logs/tidmon.log[/] for more details.")
 
     def _print_summary(self, title: str, global_stats: Counter):
         c, s, f = global_stats['completed'], global_stats['skipped'], global_stats['failed']
@@ -617,8 +617,7 @@ class Download:
                 track_id=video_id, track_title=video.title,
                 priority=DownloadPriority.NORMAL,
             )
-            with self.progress:
-                stats = Counter(await self.downloader.download_batch([task]))
+            stats = Counter(await self.downloader.download_batch([task]))
 
         if output_path.exists():
             try:

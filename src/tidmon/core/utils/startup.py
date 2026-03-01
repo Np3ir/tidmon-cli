@@ -6,15 +6,15 @@ import shutil
 
 FFMPEG_HELP_URL = "https://ffmpeg.org/download.html"
 FFMPEG_MISSING_MESSAGE = f"""
-[bold red]Error: FFmpeg no encontrado.[/bold red]
+[bold red]Error: FFmpeg not found.[/bold red]
 
-FFmpeg es un requisito indispensable para procesar los archivos de audio y vídeo descargados.
+FFmpeg is an essential requirement for processing downloaded audio and video files.
 
-[bold yellow]Solución:[/bold yellow]
-1.  **Instala FFmpeg** en tu sistema. Puedes descargarlo desde: [blue underline]{FFMPEG_HELP_URL}[/blue underline]
-2.  Asegúrate de que el ejecutable de FFmpeg (`ffmpeg.exe` en Windows) esté en una carpeta incluida en el **PATH** de tu sistema.
+[bold yellow]Solution:[/bold yellow]
+1.  **Install FFmpeg** on your system. You can download it from: [blue underline]{FFMPEG_HELP_URL}[/blue underline]
+2.  Make sure the FFmpeg executable (`ffmpeg.exe` on Windows) is in a folder included in your system's **PATH**.
 
-Una vez instalado, vuelve a ejecutar este comando.
+Once installed, run this command again.
 """
 
 

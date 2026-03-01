@@ -1,6 +1,6 @@
 """
-FFmpeg utilities de tiddl
-Código extraído de tiddl/core/utils/ffmpeg.py
+FFmpeg utilities from tiddl
+Code extracted from tiddl/core/utils/ffmpeg.py
 """
 
 import subprocess
@@ -34,8 +34,8 @@ def convert_to_mp4(source: Path) -> Path:
 
 def extract_flac(source: Path) -> Path:
     """
-    Extrae FLAC audio de contenedor MP4
-    Para HI_RES_LOSSLESS
+    Extracts FLAC audio from MP4 container
+    For HI_RES_LOSSLESS
     """
     
     tmp = source.with_suffix(".tmp.flac")
@@ -45,7 +45,7 @@ def extract_flac(source: Path) -> Path:
     
     tmp.replace(dest)
     
-    # Eliminar source si es diferente
+    # Delete source if it's different
     if source != dest:
         try:
             source.unlink()
@@ -57,14 +57,14 @@ def extract_flac(source: Path) -> Path:
 
 def fix_mp4_faststart(source: Path) -> Path:
     """
-    Remux MP4/M4A para mover 'moov' atom al inicio
-    Arregla archivos corruptos/fragmentados
+    Remuxes MP4/M4A to move 'moov' atom to the beginning
+    Fixes corrupt/fragmented files
     """
     tmp = source.with_name(source.stem + ".fixed" + source.suffix)
     
     run(["ffmpeg", "-y", "-i", str(source), "-c", "copy", "-movflags", "+faststart", str(tmp)])
     
-    # Reemplazar original si tmp fue creado
+    # Replace original if tmp was created
     if tmp.exists():
         tmp.replace(source)
     
