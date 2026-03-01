@@ -11,9 +11,9 @@ authors = [
 description = "A powerful command-line tool for monitoring TIDAL artists, tracking new releases, and automating your music library management."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT License" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -35,3 +35,6 @@ dependencies = [
 
 [project.scripts]
 tidmon = "tidmon.cli:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
