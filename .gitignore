@@ -8,3 +8,9 @@ __pycache__/
 # IDE / Editor folders
 .vscode/
 .idea/
+
+# Virtual environment
+.venv/
+
+# Build artifacts
+src/tidmon_cli.egg-info/
