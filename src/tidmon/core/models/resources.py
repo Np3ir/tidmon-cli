@@ -1,7 +1,7 @@
 """
 Pydantic models for TIDAL API resources.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Any, Literal
 from datetime import datetime
 from enum import Enum
@@ -40,6 +40,19 @@ class Album(BaseModel):
     media_metadata: Optional[MediaMetadata] = Field(None, alias='mediaMetadata')
     genre: Optional[str] = None
 
+    @validator('release_date', pre=True)
+    def parse_release_date(cls, v):
+        if isinstance(v, str):
+            # The API can return just a year, or year-month, or year-month-day
+            # We pad it to be a full date to avoid errors
+            if len(v) == 4: # YYYY
+                v += '-01-01'
+            elif len(v) == 7: # YYYY-MM
+                v += '-01'
+            return datetime.strptime(v, '%Y-%m-%d')
+        return v
+
+
     class Config:
         allow_population_by_field_name = True
 
@@ -66,6 +79,28 @@ class Track(BaseModel):
     stream_start_date: Optional[datetime] = Field(None, alias='streamStartDate')
     allow_streaming: Optional[bool] = Field(True, alias='allowStreaming')
 
+    @validator('release_date', 'stream_start_date', pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            if len(v) == 4: # YYYY
+                v += '-01-01'
+            elif len(v) == 7: # YYYY-MM
+                v += '-01'
+            
+            if 'T' in v and v.endswith('Z'):
+                # Handle ISO 8601 format like '2021-03-19T10:00:00.000Z'
+                try:
+                    return datetime.fromisoformat(v.replace('.000Z', '+00:00'))
+                except ValueError:
+                    # Fallback for different ISO 8601 format without milliseconds
+                    return datetime.fromisoformat(v.replace('Z', '+00:00'))
+
+            try:
+                return datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                return v # return original value if parsing fails
+        return v
+
     class Config:
         allow_population_by_field_name = True
 
@@ -86,6 +121,28 @@ class Video(BaseModel):
     quality: Optional[str] = None
     allow_streaming: Optional[bool] = Field(True, alias='allowStreaming')
 
+    @validator('release_date', 'stream_start_date', pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            if len(v) == 4: # YYYY
+                v += '-01-01'
+            elif len(v) == 7: # YYYY-MM
+                v += '-01'
+            
+            if 'T' in v and v.endswith('Z'):
+                # Handle ISO 8601 format like '2021-03-19T10:00:00.000Z'
+                try:
+                    return datetime.fromisoformat(v.replace('.000Z', '+00:00'))
+                except ValueError:
+                    # Fallback for different ISO 8601 format without milliseconds
+                    return datetime.fromisoformat(v.replace('Z', '+00:00'))
+
+            try:
+                return datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                return v # return original value if parsing fails
+        return v
+
     class Config:
         allow_population_by_field_name = True
 
@@ -104,6 +161,22 @@ class Playlist(BaseModel):
     url: Optional[str] = None
     image: Optional[str] = None
     popularity: Optional[int] = None
+
+    @validator('last_updated', 'created', pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            if 'T' in v and v.endswith('Z'):
+                # Handle ISO 8601 format like '2021-03-19T10:00:00.000Z'
+                try:
+                    return datetime.fromisoformat(v.replace('.000Z', '+00:00'))
+                except ValueError:
+                    # Fallback for different ISO 8601 format without milliseconds
+                    return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            try:
+                return datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                return v # return original value if parsing fails
+        return v
 
     class Config:
         allow_population_by_field_name = True
@@ -132,6 +205,22 @@ class ArtistBio(BaseModel):
     last_updated: Optional[datetime] = Field(None, alias='lastUpdated')
     text: Optional[str] = None
     summary: Optional[str] = None
+
+    @validator('last_updated', pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            if 'T' in v and v.endswith('Z'):
+                # Handle ISO 8601 format like '2021-03-19T10:00:00.000Z'
+                try:
+                    return datetime.fromisoformat(v.replace('.000Z', '+00:00'))
+                except ValueError:
+                    # Fallback for different ISO 8601 format without milliseconds
+                    return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            try:
+                return datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                return v # return original value if parsing fails
+        return v
 
     class Config:
         allow_population_by_field_name = True
