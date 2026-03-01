@@ -416,27 +416,74 @@ class Download:
         skipped_tasks = [t for t in tasks if t.status == DownloadStatus.SKIPPED]
         active_tasks  = [t for t in tasks if t.status != DownloadStatus.SKIPPED]
 
-        # Print skipped result lines immediately (before Live display)
+        # Print skipped result lines immediately
         for t in skipped_tasks:
             path = t.output_path if t.output_path and t.output_path.exists() else None
             self.ui.print_result("[yellow]Exists", t.track_title or 'Unknown', path)
 
+        # Download cover once before the track loop so it can be embedded
+        # in each track as soon as it finishes — same order as tiddl.
+        cover_data = None
+        try:
+            if album.cover and (
+                self.config.save_cover_enabled() or self.config.embed_cover_enabled()
+            ):
+                album_dir = tasks[0].output_path.parent
+                cover = Cover(album.cover)
+                cover_data = await asyncio.to_thread(cover._get_data)
+                cover.data = cover_data
+                if self.config.save_cover_enabled():
+                    await asyncio.to_thread(cover.save_to_directory, album_dir / "cover")
+        except Exception as e:
+            logger.error(f"Error downloading cover: {e}")
+
         self.downloader.reset_stats()
         self.current_tasks.clear()
 
-        # Siempre mostrar los paneles aunque todo esté skipped
+        # Sequential download: audio → lrc → metadata → next track (tiddl order)
+        track_map = {t.id: t for t in tracks}
+        session   = await self.downloader._get_session()
+
         self.ui.start(total=len(tasks))
         for _ in skipped_tasks:
             self.ui.track_finish_silent()
         try:
-            stats = await self.downloader.download_batch(active_tasks) if active_tasks else {"completed": 0, "failed": 0, "skipped": 0, "total_bytes": 0}
+            for task in active_tasks:
+                # 1. Download audio file
+                await self.downloader.download_file(task, session)
+
+                # 2. Apply metadata immediately after audio is on disk
+                if task.output_path and task.output_path.exists():
+                    track = track_map.get(task.track_id)
+                    if track:
+                        try:
+                            lyrics_text = None
+                            lrc_path = task.output_path.with_suffix(".lrc")
+                            if lrc_path.exists():
+                                lyrics_text = lrc_path.read_text(encoding="utf-8")
+                            else:
+                                txt_path = task.output_path.with_suffix(".txt")
+                                if txt_path.exists():
+                                    lyrics_text = txt_path.read_text(encoding="utf-8")
+                            genre = (
+                                getattr(track.album, "genre", None)
+                                or getattr(album, "genre", None)
+                            )
+                            add_track_metadata(
+                                path=task.output_path,
+                                track=track,
+                                album=album,
+                                lyrics=lyrics_text,
+                                cover_data=cover_data if self.config.embed_cover_enabled() else None,
+                                genre=genre,
+                            )
+                        except Exception as e:
+                            logger.error(f"Error applying metadata to {task.track_title}: {e}")
         finally:
             self.ui.stop()
 
-        # Sumar los skipped pre-separados al total
+        stats = dict(self.downloader.get_stats())
         stats["skipped"] = stats.get("skipped", 0) + len(skipped_tasks)
-
-        await self._apply_post_processing(tasks, tracks, album)
 
         if stats['failed'] == 0:
             try:
