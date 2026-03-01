@@ -1,4 +1,5 @@
 import logging
+import os
 import platform
 import sys
 from pathlib import Path
@@ -31,34 +32,41 @@ logger = logging.getLogger(__name__)
 def get_appdata_dir() -> Path:
     """
     Get the application data directory.
-    Portable Mode: Uses 'data' folder next to the executable if it exists.
-    Standard Mode: Uses OS standard AppData location.
+
+    Priority order:
+      1. PyInstaller frozen exe  → <exe_dir>/data   (portable, always)
+      2. Env var TIDMON_DATA_DIR → custom path       (power users / CI)
+      3. Standard OS path        → platform-specific (normal pip install)
+         - Windows : %APPDATA%/tidmon
+         - macOS   : ~/Library/Application Support/tidmon
+         - Linux   : ~/.local/share/tidmon
     """
-    # Check if we are running as a frozen executable (PyInstaller)
+    # 1. PyInstaller frozen executable
     if getattr(sys, 'frozen', False):
-        base_dir = Path(sys.executable).parent
+        app_dir = Path(sys.executable).parent / "data"
+        app_dir.mkdir(exist_ok=True)
+        return app_dir
+
+    # 2. Override via environment variable
+    env_override = os.environ.get("TIDMON_DATA_DIR")
+    if env_override:
+        app_dir = Path(env_override)
+        app_dir.mkdir(parents=True, exist_ok=True)
+        return app_dir
+
+    # 3. OS-standard location (pip install / dev)
+    system = platform.system()
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif system == "Darwin":
+        base = Path.home() / "Library" / "Application Support"
     else:
-        # Development mode - use current working directory or script location
-        base_dir = Path(__file__).parent.parent.parent
+        # Linux / other POSIX - respect XDG spec
+        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
 
-    # Check for portable 'data' folder
-    portable_data = base_dir / "data"
-    
-    # If 'data' folder exists next to exe, use it (Portable Mode)
-    if portable_data.exists():
-        return portable_data
-        
-    # Otherwise, create it there to FORCE portable mode by default for new installs
-    # or fall back to system AppData if you prefer hybrid.
-    # User request: "installation portable easy to move" -> FORCE PORTABLE
-    
-    portable_data.mkdir(exist_ok=True)
-    return portable_data
-
-    # Legacy AppData fallback (commented out for forced portability)
-    # system = platform.system()
-    # if system == "Windows": ...
-
+    app_dir = base / "tidmon"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    return app_dir
 
 
 def get_config_file() -> Path:
@@ -81,26 +89,23 @@ def get_log_file() -> Path:
 def init_appdata_dir(appdata_path: Path):
     """Initialize application data directory"""
     try:
-        # Create main directory
         appdata_path.mkdir(parents=True, exist_ok=True)
-        
-        # Create subdirectories
         (appdata_path / "logs").mkdir(exist_ok=True)
         (appdata_path / "backups").mkdir(exist_ok=True)
-        
+
         logger.info(f"Application directory initialized at {appdata_path}")
-        
+
         print(f"\n✓ tidmon initialized!")
         print(f"  Config: {get_config_file()}")
         print(f"  Database: {get_db_file()}")
         print(f"  Logs: {get_log_file()}")
         print("\nNext steps:")
         print("  1. Authenticate with TIDAL: tidmon auth")
-        print("  2. Add artists to monitor: tidmon monitor add \"Artist Name\"")
+        print('  2. Add artists to monitor: tidmon monitor add "Artist Name"')
         print("  3. Refresh for new releases: tidmon refresh\n")
-        
+
         return True
-    
+
     except Exception as e:
         logger.error(f"Failed to initialize app directory: {e}")
         return False

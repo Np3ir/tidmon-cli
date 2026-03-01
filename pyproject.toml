@@ -17,16 +17,16 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "aiofiles==23.2.1",
-    "aiohttp==3.9.5",
-    "click==8.1.7",
-    "m3u8==5.1.0",
-    "mutagen==1.47.0",
-    "Pillow==11.0.0",
+    "aiofiles>=23.2",
+    "aiohttp>=3.11.0",
+    "click>=8.1",
+    "m3u8>=5.1",
+    "mutagen>=1.47",
+    "Pillow>=11.1.0",
     "pydantic>=1.10,<2.0",
-    "requests==2.31.0",
-    "requests-cache==1.2.0",
-    "rich==13.7.1"
+    "requests>=2.31",
+    "requests-cache>=1.2",
+    "rich>=13.7"
 ]
 
 [project.urls]
