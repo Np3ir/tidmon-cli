@@ -254,50 +254,47 @@ class Monitor:
         """Adds a playlist to the monitoring database."""
         parsed_url = url_utils.parse_url(url)
         if not parsed_url or parsed_url.tidal_type != url_utils.TidalType.PLAYLIST:
-            logger.error(f"Invalid TIDAL playlist URL: {url}")
+            print(f"  [!] Invalid TIDAL playlist URL: {url}")
             return
 
         playlist_uuid = parsed_url.tidal_id
-        logger.info(f"Fetching details for playlist ID: {playlist_uuid}")
+        print(f"\n  🔍 Fetching playlist {playlist_uuid}...")
 
         try:
             playlist = self.api.get_playlist(playlist_uuid)
             if not playlist:
-                logger.error(f"Could not retrieve playlist with ID: {playlist_uuid}")
+                print(f"  [!] Could not retrieve playlist with ID: {playlist_uuid}")
                 return
-            
+
             if self.db.add_playlist(playlist.uuid, playlist.title):
-                logger.info(f"Playlist '{playlist.title}' added. Fetching initial tracks...")
+                print(f"  ✅ Playlist '{playlist.title}' added.")
+                print(f"  📋 Fetching tracks...")
                 tracks = self.api.get_playlist_items(playlist.uuid)
                 if not tracks:
-                    logger.warning(f"Playlist '{playlist.title}' appears to be empty. No artists to add.")
+                    print(f"  ⚠️  Playlist '{playlist.title}' appears to be empty.")
                     return
-                
+
                 # Establish track baseline
                 def get_id(item): return item.id if isinstance(item, BaseModel) else item.get('id')
                 def get_artists(item): return item.artists if isinstance(item, BaseModel) else item.get('artists', [])
 
                 track_ids = {get_id(track) for track in tracks if get_id(track) is not None}
                 self.db.update_playlist_tracks(playlist.uuid, track_ids)
-                logger.info(f"✓ Baseline of {len(track_ids)} tracks established for '{playlist.title}'.")
+                print(f"  ✓  Baseline of {len(track_ids)} tracks established.")
 
                 # Add all artists from the playlist to artist monitoring
-                logger.info("Processing artists from the playlist...")
                 artist_ids_in_playlist = set()
                 for track in tracks:
-                    artists = get_artists(track)
-                    if artists:
-                        for artist in artists:
-                            artist_id = get_id(artist)
-                            if artist_id:
-                                artist_ids_in_playlist.add(artist_id)
-                
+                    for artist in get_artists(track):
+                        artist_id = get_id(artist)
+                        if artist_id:
+                            artist_ids_in_playlist.add(artist_id)
+
+                total_artists = len(artist_ids_in_playlist)
+                print(f"\n  👥 Found {total_artists} unique artists — adding to monitoring...\n")
+
                 added_count = 0
                 already_monitored_count = 0
-                total_artists = len(artist_ids_in_playlist)
-
-                logger.info(f"Found {total_artists} unique artists in '{playlist.title}'. Adding them to monitoring...")
-
                 for artist_id in artist_ids_in_playlist:
                     artist_details = self.api.get_artist(artist_id)
                     if artist_details:
@@ -305,12 +302,15 @@ class Monitor:
                             added_count += 1
                         else:
                             already_monitored_count += 1
-                
-                logger.info(f"Playlist Summary: {added_count} new artists added. {already_monitored_count} were already monitored.")
 
+                print(f"\n  ✅ Done — {added_count} new artist(s) added, {already_monitored_count} already monitored.")
+                print(f"  💡 Run [tidmon refresh] to check for new releases.\n")
+            else:
+                print(f"  ⚠️  Playlist '{playlist.title}' is already being monitored.")
 
         except Exception as e:
-            logger.error(f"An error occurred while adding the playlist: {e}")
+            logger.error(f"Error adding playlist: {e}")
+            print(f"  [!] Error: {e}")
 
     def add_playlists_from_file(self, filepath: str):
         """
