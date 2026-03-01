@@ -20,39 +20,36 @@ A powerful command-line tool for monitoring TIDAL artists, tracking new releases
 
 ## Installation
 
-1.  **Prerequisites**:
-    *   **Python 3.10+**
-    *   **FFmpeg**: Make sure `ffmpeg` is installed and available in your system's PATH. It is required for processing audio and video files.
+**Prerequisites**: 
+*   **Python 3.10+**
+*   **FFmpeg**: Make sure `ffmpeg` is installed and available in your system's PATH. It is required for processing audio and video files.
 
-2.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/Np3ir/tidmon-cli.git
-    cd tidmon-cli
-    ```
+With the prerequisites met, you can install the project directly from GitHub with a single command:
 
-3.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+pip install git+https://github.com/Np3ir/tidmon-cli.git
+```
+
+This will download the project, install all dependencies, and create the `tidmon` command in your system.
 
 ## Quick Start
 
 1.  **Authenticate with TIDAL**:
     *   Run the interactive login process. This will open a browser window for you to authorize the application.
     ```bash
-    python tidmon auth
+    tidmon auth
     ```
 
 2.  **Monitor an Artist**:
     *   Start tracking an artist by their name or TIDAL URL.
     ```bash
-    python tidmon monitor add "Daft Punk"
+    tidmon monitor add "Daft Punk"
     ```
 
 3.  **Check for New Releases & Download**:
     *   `tidmon` will check for any new albums from your monitored artists and automatically download them.
     ```bash
-    python tidmon refresh --download
+    tidmon refresh --download
     ```
 
 ## Command Reference

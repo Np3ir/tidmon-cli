@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tidmon-cli"
+version = "1.0.0"
+authors = [
+  { name="Np3ir", email="author@example.com" },
+]
+description = "A powerful command-line tool for monitoring TIDAL artists, tracking new releases, and automating your music library management."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "aiofiles==23.2.1",
+    "aiohttp==3.9.5",
+    "click==8.1.7",
+    "m3u8==5.1.0",
+    "mutagen==1.47.0",
+    "Pillow==11.0.0",
+    "pydantic==2.7.1",
+    "requests==2.31.0",
+    "requests-cache==1.2.0",
+    "rich==13.7.1"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Np3ir/tidmon-cli"
+"Bug Tracker" = "https://github.com/Np3ir/tidmon-cli/issues"
+
+[project.scripts]
+tidmon = "tidmon.cli:run"
