@@ -353,6 +353,30 @@ def show_albums(artist, pending, since, until, export):
         s.show_albums(artist=artist, pending=pending, since=since, until=until, export=export)
 
 
+@show.command('discography')
+@click.option('--format', '-f', 'fmt',
+              type=click.Choice(['csv', 'txt', 'html'], case_sensitive=False),
+              multiple=True,
+              default=['csv', 'txt', 'html'],
+              show_default=True,
+              help='Output format(s). Can be specified multiple times.')
+@click.option('--output', '-o', default='.', show_default=True,
+              help='Directory where the files will be saved.')
+def show_discography(fmt, output):
+    """Export artist discographies organized into A-Z files.
+
+    Generates one file per letter (A-Z and #) for each requested format,
+    containing all artists and their albums sorted by release date.
+
+    \b
+    Examples:
+      tidmon show discography
+      tidmon show discography --format csv --format html -o ~/Music/catalog
+    """
+    with Show() as s:
+        s.show_discography(output_dir=output, formats=list(fmt))
+
+
 # ── config ────────────────────────────────────────────────────────────────────
 
 @cli.group()

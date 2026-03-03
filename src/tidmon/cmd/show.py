@@ -312,3 +312,202 @@ class Show:
             f"[green]Downloaded: {downloaded}[/dim]  "
             f"[dim][yellow]Pending: {pending}[/][/dim]\n"
         )
+    # ── Discography ──────────────────────────────────────────────────────────
+
+    def show_discography(self, output_dir: str = ".", formats: list = None):
+        """
+        Export artist discographies organized into A-Z files.
+
+        For each letter (A-Z) and # (non-alphabetic), generates one file per
+        requested format containing all artists starting with that letter and
+        their albums, sorted by release date.
+
+        Args:
+            output_dir: Directory where the files will be saved.
+            formats:    List of formats to generate: 'csv', 'txt', 'html'.
+        """
+        if formats is None:
+            formats = ["csv"]
+
+        # Fetch all data
+        artists = self.db.get_all_artists() or []
+        if not artists:
+            console.print("[yellow]No artists in database.[/]")
+            return
+
+        all_albums = self.db.get_albums(include_downloaded=True) or []
+
+        # Group albums by artist_id for fast lookup
+        albums_by_artist: dict = {}
+        for album in all_albums:
+            aid = album["artist_id"] if "artist_id" in album else None
+            if aid is None:
+                # fallback: match by name
+                for a in artists:
+                    if a["artist_name"] == album.get("artist_name"):
+                        aid = a["artist_id"]
+                        break
+            if aid is not None:
+                albums_by_artist.setdefault(aid, []).append(album)
+
+        # Sort albums within each artist by release date
+        for aid in albums_by_artist:
+            albums_by_artist[aid].sort(key=lambda x: x.get("release_date") or "")
+
+        # Group artists by first letter
+        letters: dict = {}
+        for artist in sorted(artists, key=lambda x: x["artist_name"].upper()):
+            first = artist["artist_name"][0].upper()
+            key = first if first.isalpha() else "#"
+            letters.setdefault(key, []).append(artist)
+
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+
+        total_files = 0
+        for letter, letter_artists in sorted(letters.items()):
+            if "csv" in formats:
+                self._write_discography_csv(letter, letter_artists, albums_by_artist, out)
+                total_files += 1
+            if "txt" in formats:
+                self._write_discography_txt(letter, letter_artists, albums_by_artist, out)
+                total_files += 1
+            if "html" in formats:
+                self._write_discography_html(letter, letter_artists, albums_by_artist, out)
+                total_files += 1
+
+        fmt_str = ", ".join(f.upper() for f in formats)
+        console.print(
+            f"\n[green]✅ Discography exported[/] — "
+            f"{len(letters)} letter(s) × {len(formats)} format(s) = "
+            f"[bold]{total_files} file(s)[/] in [dim]{out}[/]\n"
+        )
+
+    # ── Discography writers ──────────────────────────────────────────────────
+
+    def _write_discography_csv(self, letter: str, artists: list,
+                                albums_by_artist: dict, out: Path) -> None:
+        """Write one CSV file per letter with artist+album rows."""
+        path = out / f"{letter}.csv"
+        fields = ["artist_name", "artist_id", "album_title", "album_type",
+                  "release_date", "number_of_tracks", "downloaded", "album_id"]
+        rows = []
+        for artist in artists:
+            aid = artist["artist_id"]
+            for album in albums_by_artist.get(aid, []):
+                rows.append({
+                    "artist_name":     artist["artist_name"],
+                    "artist_id":       aid,
+                    "album_title":     album.get("title", ""),
+                    "album_type":      album.get("album_type", ""),
+                    "release_date":    (album.get("release_date") or "")[:10],
+                    "number_of_tracks": album.get("number_of_tracks", ""),
+                    "downloaded":      album.get("downloaded", False),
+                    "album_id":        album.get("album_id", ""),
+                })
+
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def _write_discography_txt(self, letter: str, artists: list,
+                                albums_by_artist: dict, out: Path) -> None:
+        """Write one readable TXT file per letter."""
+        path = out / f"{letter}.txt"
+        lines = [f"{'='*60}", f"  {letter} — Discography", f"{'='*60}\n"]
+        for artist in artists:
+            aid = artist["artist_id"]
+            a_albums = albums_by_artist.get(aid, [])
+            lines.append(f"▶ {artist['artist_name']}  (ID: {aid})")
+            if a_albums:
+                for album in a_albums:
+                    date     = (album.get("release_date") or "????-??-??")[:10]
+                    a_type   = (album.get("album_type") or "ALBUM")[:1]  # A/E/S/C
+                    dl_mark  = "✓" if album.get("downloaded") else "·"
+                    tracks   = album.get("number_of_tracks") or "?"
+                    lines.append(
+                        f"  {dl_mark} [{date}] [{a_type}] "
+                        f"{album.get('title', '?')}  ({tracks} tracks)"
+                    )
+            else:
+                lines.append("  (no albums in database)")
+            lines.append("")
+
+        path.write_text("\n".join(lines), encoding="utf-8")
+
+    def _write_discography_html(self, letter: str, artists: list,
+                                 albums_by_artist: dict, out: Path) -> None:
+        """Write one styled HTML file per letter."""
+        path = out / f"{letter}.html"
+
+        type_colors = {
+            "ALBUM":       "#4fc3f7",
+            "EP":          "#fff176",
+            "SINGLE":      "#f48fb1",
+            "COMPILATION": "#a5d6a7",
+        }
+
+        artist_blocks = []
+        for artist in artists:
+            aid = artist["artist_id"]
+            a_albums = albums_by_artist.get(aid, [])
+            rows = []
+            for album in a_albums:
+                date    = (album.get("release_date") or "")[:10]
+                a_type  = (album.get("album_type") or "ALBUM").upper()
+                color   = type_colors.get(a_type, "#ccc")
+                dl      = "✓" if album.get("downloaded") else "·"
+                dl_cls  = "dl-yes" if album.get("downloaded") else "dl-no"
+                tracks  = album.get("number_of_tracks") or "?"
+                rows.append(
+                    f'<tr>'
+                    f'<td class="{dl_cls}">{dl}</td>'
+                    f'<td class="date">{date}</td>'
+                    f'<td><span class="badge" style="background:{color}">{a_type}</span></td>'
+                    f'<td>{album.get("title","")}</td>'
+                    f'<td class="tracks">{tracks}</td>'
+                    f'<td class="aid">{album.get("album_id","")}</td>'
+                    f'</tr>'
+                )
+            rows_html = "\n".join(rows) if rows else '<tr><td colspan="6" class="empty">No albums</td></tr>'
+            count = len(a_albums)
+            artist_blocks.append(f"""
+    <section class="artist">
+      <h2>{artist['artist_name']} <span class="meta">ID {aid} · {count} album(s)</span></h2>
+      <table>
+        <thead><tr><th></th><th>Date</th><th>Type</th><th>Title</th><th>Tracks</th><th>ID</th></tr></thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+    </section>""")
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Discography — {letter}</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 2rem; }}
+  h1   {{ color: #4fc3f7; border-bottom: 2px solid #4fc3f7; padding-bottom: .5rem; }}
+  h2   {{ color: #fff; margin: 2rem 0 .5rem; font-size: 1.2rem; }}
+  .meta {{ color: #888; font-size: .85rem; font-weight: normal; }}
+  table {{ width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .9rem; }}
+  th   {{ text-align: left; color: #4fc3f7; border-bottom: 1px solid #333; padding: .4rem .6rem; }}
+  td   {{ padding: .3rem .6rem; border-bottom: 1px solid #222; }}
+  .dl-yes {{ color: #4caf50; font-weight: bold; }}
+  .dl-no  {{ color: #555; }}
+  .date   {{ color: #aaa; white-space: nowrap; }}
+  .tracks {{ text-align: right; color: #aaa; }}
+  .aid    {{ text-align: right; color: #555; font-size: .8rem; }}
+  .badge  {{ padding: .1rem .45rem; border-radius: 4px; font-size: .75rem;
+             font-weight: bold; color: #000; }}
+  .empty  {{ color: #555; font-style: italic; }}
+  .artist {{ margin-bottom: 2.5rem; }}
+</style>
+</head>
+<body>
+<h1>Discography — {letter}</h1>
+{''.join(artist_blocks)}
+</body>
+</html>"""
+        path.write_text(html, encoding="utf-8")
