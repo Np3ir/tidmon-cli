@@ -233,8 +233,15 @@ def load_auth_data() -> AuthData:
 
 def save_auth_data(auth_data: AuthData) -> None:
     path = _get_auth_data_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(auth_data.json())
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(auth_data.json())
+    except OSError as e:
+        logger.warning(f"Could not write auth file at {path}: {e}")
+        raise AuthClientError(
+            error="storage_error",
+            error_description=f"Failed to persist auth data to {path}: {e}",
+        ) from e
 
 
 # ============================================================
@@ -272,10 +279,17 @@ class AuthAPI:
             },
             auth=self._credentials.to_tuple(),
         )
-        json_data = res.json()
         if res.status_code != 200:
-            raise AuthClientError(**json_data)
-        return AuthResponseWithRefresh.parse_obj(json_data)
+            try:
+                json_data = res.json()
+                raise AuthClientError(**json_data)
+            except (ValueError, TypeError):
+                raise AuthClientError(
+                    status=res.status_code,
+                    error="http_error",
+                    error_description=res.text[:200],
+                )
+        return AuthResponseWithRefresh.parse_obj(res.json())
 
     def refresh_token(self, refresh_token: str) -> AuthResponse:
         res = self._session.post(

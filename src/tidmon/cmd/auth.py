@@ -1,6 +1,6 @@
 import logging
 import webbrowser
-from datetime import datetime
+from datetime import timedelta
 from time import time, sleep
 
 from rich.console import Console
@@ -13,6 +13,16 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
+def _format_remaining(expires_at: int) -> str:
+    """Format remaining token lifetime as 'Xd Xh Xm'."""
+    seconds = max(0, expires_at - int(time()))
+    remaining = timedelta(seconds=seconds)
+    days = remaining.days
+    hours, rem = divmod(remaining.seconds, 3600)
+    mins, _ = divmod(rem, 60)
+    return f"{days}d {hours}h {mins}m"
+
+
 class Auth:
     """Handles authentication using tiddl's AuthAPI + AuthData pattern."""
 
@@ -23,7 +33,8 @@ class Auth:
         """Initiates the device authentication flow."""
         loaded = load_auth_data()
 
-        if loaded.token:
+        # Allow re-auth if token exists but is expired
+        if loaded.token and loaded.expires_at and loaded.expires_at > int(time()):
             console.print("[cyan bold]Already logged in.")
             return
 
@@ -47,6 +58,13 @@ class Auth:
 
         with console.status(status_text) as status:
             while True:
+                # Hard time-based fail-safe independent of server error semantics
+                if time() >= auth_end_at:
+                    status.console.print(
+                        "[bold red]Authentication timed out. Please try again."
+                    )
+                    break
+
                 sleep(device_auth.interval)
 
                 try:
@@ -109,15 +127,12 @@ class Auth:
         console.print(f"Country:   {loaded.country_code}")
 
         if loaded.expires_at:
-            expiry = datetime.fromtimestamp(loaded.expires_at)
-            remaining = expiry - datetime.now()
-            if remaining.total_seconds() <= 0:
-                console.print("Token:     [bold red]EXPIRED[/bold red]. Run 'tidmon auth' to log in again.")
+            if loaded.expires_at <= int(time()):
+                console.print(
+                    "Token:     [bold red]EXPIRED[/bold red]. Run 'tidmon auth' to log in again."
+                )
             else:
-                days = remaining.days
-                hours, rem = divmod(remaining.seconds, 3600)
-                mins, _ = divmod(rem, 60)
-                console.print(f"Token:     Expires in {days}d {hours}h {mins}m")
+                console.print(f"Token:     Expires in {_format_remaining(loaded.expires_at)}")
 
         console.print("-----------------------------")
 
@@ -129,14 +144,10 @@ class Auth:
             console.print("[bold red]Not logged in.")
             return
 
-        if not force and loaded.expires_at and time() < (loaded.expires_at - early_expire):
-            expiry = datetime.fromtimestamp(loaded.expires_at)
-            remaining = expiry - datetime.now()
-            days = remaining.days
-            hours, rem = divmod(remaining.seconds, 3600)
-            mins, _ = divmod(rem, 60)
+        safe_early_expire = max(0, early_expire)
+        if not force and loaded.expires_at and time() < (loaded.expires_at - safe_early_expire):
             console.print(
-                f"[green]Auth token expires in {days}d {hours}h {mins}m"
+                f"[green]Auth token expires in {_format_remaining(loaded.expires_at)}"
             )
             return
 

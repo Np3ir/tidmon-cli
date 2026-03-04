@@ -31,8 +31,11 @@ class TidalSession:
         if not auth_data.token:
             raise ConnectionError("Not authenticated. Please run 'tidmon auth' first.")
 
-        assert auth_data.user_id, "User ID is missing. Please run 'tidmon auth' first."
-        assert auth_data.country_code, "Country code is missing. Please run 'tidmon auth' first."
+        if not auth_data.user_id:
+            raise ConnectionError("User ID is missing. Please run 'tidmon auth' first.")
+
+        if not auth_data.country_code:
+            raise ConnectionError("Country code is missing. Please run 'tidmon auth' first.")
 
         logger.debug("Creating new TidalAPI instance.")
 
