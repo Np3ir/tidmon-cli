@@ -1,15 +1,23 @@
 import base64
 import json
+import logging
 import time
 import webbrowser
 from dataclasses import dataclass
-from os import environ
 from pathlib import Path
 from requests import Session, HTTPError
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from .auth_exceptions import AuthClientError
-from .auth_models import TidalToken
+from .auth_models import (
+    AuthData,
+    AuthDeviceResponse,
+    AuthResponse,
+    AuthResponseWithRefresh,
+    TidalToken,
+)
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class TidalCredentials:
@@ -196,3 +204,109 @@ def build_auth_client() -> "AuthClient":
     creds   = TidalCredentials.from_base64(_DEFAULT_B64)
     storage = TokenStorage(get_appdata_dir() / "tidal_token.json")
     return AuthClient(credentials=creds, token_storage=storage)
+
+
+# ============================================================
+# AuthData storage — mirrors tiddl's cli/utils/auth pattern
+# ============================================================
+
+def _get_auth_data_path() -> Path:
+    from tidmon.core.utils.startup import get_appdata_dir  # local: evita importación circular
+    return get_appdata_dir() / "auth.json"
+
+
+def load_auth_data() -> AuthData:
+    path = _get_auth_data_path()
+    try:
+        content = path.read_text()
+    except FileNotFoundError:
+        return AuthData()
+    except Exception as e:
+        logger.warning(f"Could not read auth file: {e}")
+        return AuthData()
+    try:
+        return AuthData.parse_raw(content)
+    except Exception as e:
+        logger.warning(f"Could not parse auth file: {e}")
+        return AuthData()
+
+
+def save_auth_data(auth_data: AuthData) -> None:
+    path = _get_auth_data_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(auth_data.json())
+    except OSError as e:
+        logger.warning(f"Could not write auth file at {path}: {e}")
+        raise AuthClientError(
+            error="storage_error",
+            error_description=f"Failed to persist auth data to {path}: {e}",
+        ) from e
+
+
+# ============================================================
+# AuthAPI — high-level wrapper that returns pydantic models
+# (mirrors tiddl's core/auth/api.py pattern)
+# ============================================================
+
+_AUTH_URL = "https://auth.tidal.com/v1/oauth2"
+
+
+class AuthAPI:
+    """High-level auth wrapper that returns typed pydantic models."""
+
+    def __init__(self) -> None:
+        self._credentials = TidalCredentials.from_base64(_DEFAULT_B64)
+        self._session = Session()
+
+    def get_device_auth(self) -> AuthDeviceResponse:
+        res = self._session.post(
+            f"{_AUTH_URL}/device_authorization",
+            data={"client_id": self._credentials.client_id, "scope": "r_usr+w_usr+w_sub"},
+        )
+        res.raise_for_status()
+        return AuthDeviceResponse.parse_obj(res.json())
+
+    def get_auth(self, device_code: str) -> AuthResponseWithRefresh:
+        """Single poll attempt — raises AuthClientError('authorization_pending') if not yet approved."""
+        res = self._session.post(
+            f"{_AUTH_URL}/token",
+            data={
+                "client_id": self._credentials.client_id,
+                "device_code": device_code,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "scope": "r_usr+w_usr+w_sub",
+            },
+            auth=self._credentials.to_tuple(),
+        )
+        if res.status_code != 200:
+            try:
+                json_data = res.json()
+                raise AuthClientError(**json_data)
+            except (ValueError, TypeError):
+                raise AuthClientError(
+                    status=res.status_code,
+                    error="http_error",
+                    error_description=res.text[:200],
+                )
+        return AuthResponseWithRefresh.parse_obj(res.json())
+
+    def refresh_token(self, refresh_token: str) -> AuthResponse:
+        res = self._session.post(
+            f"{_AUTH_URL}/token",
+            data={
+                "client_id": self._credentials.client_id,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+                "scope": "r_usr+w_usr+w_sub",
+            },
+            auth=self._credentials.to_tuple(),
+        )
+        res.raise_for_status()
+        return AuthResponse.parse_obj(res.json())
+
+    def logout_token(self, access_token: str) -> None:
+        self._session.post(
+            "https://api.tidal.com/v1/logout",
+            headers={"authorization": f"Bearer {access_token}"},
+        ).raise_for_status()

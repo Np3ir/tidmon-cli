@@ -1,83 +1,79 @@
 import logging
+from time import time
 from typing import Optional
 
 from .api import TidalAPI
 from .client import TidalClientImproved
-from .auth_client import build_auth_client
+from .auth_client import AuthAPI, load_auth_data, save_auth_data
 
 logger = logging.getLogger(__name__)
 
 
 class TidalSession:
-    """Manages the TIDAL API session."""
+    """Manages the TIDAL API session using tiddl's AuthAPI + AuthData pattern."""
 
     def __init__(self):
         self.api: Optional[TidalAPI] = None
-        self.auth_client = build_auth_client()
+        self._auth_api = AuthAPI()
 
     def get_api(self) -> TidalAPI:
         """
         Returns a valid TidalAPI instance.
 
-        Lazy initialization: current_token (which can make an HTTP refresh)
-        is only called on first access, when the instance does not yet exist.
-        On subsequent accesses, the cached instance is returned directly.
-
-        The token is kept fresh by two mechanisms already encapsulated in the client:
-          1. Reactive: on_token_expiry callback upon receiving a 401.
-          2. Proactive: current_token refreshes the token within the callback itself
-             before returning it, if expires_soon() is true.
-
-        Note: if in the future logout/login is added within the same TidalSession
-        without recreating it, the client's token would become outdated until the next
-        401. In the current architecture (TidalSession is created once per CLI execution)
-        this is not a practical problem.
+        Loads auth data from disk (AuthData) and builds the API client.
+        Token refresh is handled reactively via on_token_expiry callback.
         """
-        # Early return: avoids calling current_token unnecessarily
         if self.api is not None:
             return self.api
 
-        # First creation: verify authentication and build the instance
-        token = self.auth_client.current_token
-        if not token:
+        auth_data = load_auth_data()
+
+        if not auth_data.token:
             raise ConnectionError("Not authenticated. Please run 'tidmon auth' first.")
 
-        logger.debug("Creating new TidalAPI instance with refresh callback.")
+        if not auth_data.user_id:
+            raise ConnectionError("User ID is missing. Please run 'tidmon auth' first.")
+
+        if not auth_data.country_code:
+            raise ConnectionError("Country code is missing. Please run 'tidmon auth' first.")
+
+        logger.debug("Creating new TidalAPI instance.")
 
         def _on_token_expiry(force: bool = False) -> Optional[str]:
-            """Token refresh callback for TidalClientImproved.
-
-            Called when:
-              - 401 received (force=True)  → always refresh regardless of expiry clock
-              - Proactive check (force=False) → refresh only if expires_soon()
-            """
+            """Token refresh callback for TidalClientImproved."""
             try:
-                logger.info(f"Token refresh callback triggered (force={force}).")
-                if force:
-                    # Server says token is invalid — force a network refresh
-                    # regardless of what our local expiry clock says.
-                    new_token = self.auth_client.refresh_current_token()
-                    return new_token.access_token if new_token else None
-                else:
-                    new_token = self.auth_client.current_token
-                    return new_token.access_token if new_token else None
+                latest = load_auth_data()
+                if not latest.refresh_token:
+                    return None
+
+                # Skip network refresh if token is still valid and not forced
+                if not force and latest.expires_at and latest.expires_at > int(time()) + 60:
+                    return latest.token
+
+                logger.info(f"Refreshing token (force={force}).")
+                auth_response = self._auth_api.refresh_token(latest.refresh_token)
+
+                latest.token = auth_response.access_token
+                latest.expires_at = auth_response.expires_in + int(time())
+                if auth_response.refresh_token:
+                    latest.refresh_token = auth_response.refresh_token
+
+                save_auth_data(latest)
+                return auth_response.access_token
+
             except Exception as e:
-                logger.error(f"Error during token refresh callback: {e}", exc_info=True)
+                logger.error(f"Token refresh failed: {e}", exc_info=True)
                 return None
 
         client = TidalClientImproved(
-            token=token.access_token,
+            token=auth_data.token,
             on_token_expiry=_on_token_expiry,
         )
 
-        user_data    = token.user_data or {}
-        user_id      = str(user_data.get("userId", ""))
-        country_code = user_data.get("countryCode", "US")
-
         self.api = TidalAPI(
             client=client,
-            user_id=user_id,
-            country_code=country_code,
+            user_id=auth_data.user_id,
+            country_code=auth_data.country_code,
         )
         return self.api
 
