@@ -74,6 +74,15 @@ def whoami():
     Auth().status()
 
 
+@cli.command('auth-refresh')
+@click.option('--force', '-f', is_flag=True, help='Refresh even if token is still valid.')
+@click.option('--early-expire', '-e', default=0, metavar='seconds',
+              help='Treat token as expired this many seconds before actual expiry.')
+def auth_refresh(force, early_expire):
+    """Refresh the TIDAL access token."""
+    Auth().refresh(force=force, early_expire=early_expire)
+
+
 # ── monitor ───────────────────────────────────────────────────────────────────
 
 @cli.group()
