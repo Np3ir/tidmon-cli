@@ -34,6 +34,7 @@ class Config:
         },
         "debug_mode": False,
         "monitor_interval_hours": 24,
+        "artist_separator": ", ",
         "templates": {
             "default": (
                 "{artist_initials}/{album.artist}"

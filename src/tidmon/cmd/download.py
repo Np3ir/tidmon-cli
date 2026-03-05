@@ -774,7 +774,7 @@ class Download:
             self.config.download_path(media_type=media_type)
             or ('Downloads/Videos' if media_type == 'video' else 'Downloads')
         )
-        kwargs = dict(item=item, with_asterisk_ext=False)
+        kwargs = dict(item=item, with_asterisk_ext=False, artist_separator=self.config.get("artist_separator", ", "))
         if album is not None:
             kwargs['album'] = album
         rel = Path(format_template(template, **kwargs))

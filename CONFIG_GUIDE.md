@@ -49,6 +49,7 @@ Here is a complete `config.json` with all available options and their defaults.
   "email_password": "",
   "debug_mode": false,
   "monitor_interval_hours": 24,
+  "artist_separator": ", ",
   "templates": {
     "default": "{artist_initials}/{album.artist}/({album.date:%Y-%m-%d}) {album.title} ({album.release})/{item.number}. {item.artists_with_features} - {item.title_version} {item.explicit:shortparens}",
     "video": "{artist_initials}/{album.artist}/({item.releaseDate:%Y-%m-%d}) {item.artists_with_features} - {item.title_version} {item.explicit:shortparens}",
@@ -105,6 +106,17 @@ Here is a complete `config.json` with all available options and their defaults.
   - `"default"`: Base path for all audio downloads.
   - `"video"`: Base path for all video downloads.
 
+### Artist Separator
+
+- `artist_separator`: `string`
+  - The separator used between artist names in `{item.artists}`, `{item.features}`, and `{item.artists_with_features}`.
+  - **Default**: `", "`
+  - **Examples**:
+    - `", "` → `The Weeknd, Daft Punk`
+    - `"; "` → `The Weeknd; Daft Punk`
+    - `" / "` → `The Weeknd / Daft Punk`
+    - `" & "` → `The Weeknd & Daft Punk`
+
 ### Email Notifications
 
 - `email_notifications`: `true` | `false`
@@ -135,8 +147,9 @@ The `templates` section controls the exact folder structure and filenames for yo
 | `{item.title}` | Track title | `Starboy` |
 | `{item.title_version}` | Track version | `Remastered` |
 | `{item.artist}` | Main track artist | `The Weeknd` |
-| `{item.artists}` | All artists, comma-separated | `The Weeknd, Daft Punk` |
-| `{item.artists_with_features}` | Main artist + featured artists | `The Weeknd ft. Daft Punk` |
+| `{item.artists}` | Main artists, joined by `artist_separator` | `The Weeknd, Daft Punk` |
+| `{item.features}` | Featured artists, joined by `artist_separator` | `Daft Punk` |
+| `{item.artists_with_features}` | All artists (main + featured), joined by `artist_separator` | `The Weeknd, Daft Punk` |
 | `{item.number}` | Track number | `01` |
 | `{item.releaseDate}` | Track release date | `2016-11-25` |
 | `{item.explicit}` | "Explicit" if explicit | `Explicit` |

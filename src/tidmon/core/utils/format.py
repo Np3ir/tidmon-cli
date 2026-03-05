@@ -449,6 +449,7 @@ def generate_template_data(
     playlist:         Optional[Playlist]            = None,
     playlist_index:   int                           = 0,
     quality:          str                           = "",
+    artist_separator: str                           = ", ",
 ) -> dict:
 
     safe_file_len   = MAX_COMPONENT_LEN   # 250 bytes for filenames
@@ -474,7 +475,7 @@ def generate_template_data(
         t_trunc  = _truncate(clean_title, MAX_TITLE_LEN)
         ver_str  = f" ({ver})" if ver else ""
         tv_trunc = _truncate(f"{t_trunc}{ver_str}", MAX_TITLE_LEN)
-        af_trunc = _truncate(", ".join(m_arts + f_arts), MAX_ARTISTS_LEN)
+        af_trunc = _truncate(artist_separator.join(m_arts + f_arts), MAX_ARTISTS_LEN)
 
         art_name = (
             item.artist.name
@@ -496,8 +497,8 @@ def generate_template_data(
             quality              = quality,
             artist               = art_name,
             safe_artist          = sanitize_filename(art_name, item.id, max_len=safe_folder_len),
-            artists              = ", ".join(m_arts),
-            features             = ", ".join(f_arts),
+            artists              = artist_separator.join(m_arts),
+            features             = artist_separator.join(f_arts),
             artists_with_features= af_trunc,
             explicit             = Explicit(item.explicit),
             dolby                = UserFormat(is_dolby),
@@ -665,11 +666,12 @@ def format_template(
     playlist_index:   int                           = 0,
     quality:          str                           = "",
     with_asterisk_ext: bool                         = True,
+    artist_separator: str                           = ", ",
     **extra,
 ) -> str:
 
     template  = template.strip().lstrip('\ufeff').replace("\\", "/")
-    base_data = generate_template_data(item, album, playlist, playlist_index, quality)
+    base_data = generate_template_data(item, album, playlist, playlist_index, quality, artist_separator)
 
     aliases: dict = {}
     if item and base_data.get("item"):
