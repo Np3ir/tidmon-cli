@@ -32,6 +32,7 @@ class Config:
             "default": str(Path.home() / "Music" / "tidmon"),
             "video": str(Path.home() / "Videos" / "tidmon")
         },
+        "artist_separator": ", ",
         "debug_mode": False,
         "monitor_interval_hours": 24,
         "templates": {
@@ -236,6 +237,10 @@ class Config:
         if isinstance(value, list) and value:
             return value
         return self.DEFAULT_CONFIG["quality_order"]
+
+    def artist_separator(self) -> str:
+        """Returns the separator used to join multiple artist names (e.g. ', ' or '; ')."""
+        return self.get("artist_separator", ", ")
 
     def get_config_file_path(self) -> str:
         return str(self.config_file)

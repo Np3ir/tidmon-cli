@@ -347,6 +347,7 @@ class Download:
                     lyrics=lyrics_text,
                     cover_data=cover_data if self.config.embed_cover_enabled() else None,
                     genre=genre,
+                    artist_separator=self.config.artist_separator(),
                 )
             except Exception as e:
                 logger.error(f"Error applying metadata to {task.track_title}: {e}")
@@ -481,6 +482,7 @@ class Download:
                                 lyrics=lyrics_text,
                                 cover_data=cover_data if self.config.embed_cover_enabled() else None,
                                 genre=genre,
+                                artist_separator=self.config.artist_separator(),
                             )
                         except Exception as e:
                             logger.error(f"Error applying metadata to {task.track_title}: {e}")
@@ -621,7 +623,7 @@ class Download:
 
         if output_path.exists():
             try:
-                add_video_metadata(path=output_path, video=video)
+                add_video_metadata(path=output_path, video=video, artist_separator=self.config.artist_separator())
                 logger.debug("Metadata applied")
             except Exception as e:
                 logger.error(f"Error applying metadata: {e}")
@@ -774,7 +776,7 @@ class Download:
             self.config.download_path(media_type=media_type)
             or ('Downloads/Videos' if media_type == 'video' else 'Downloads')
         )
-        kwargs = dict(item=item, with_asterisk_ext=False)
+        kwargs = dict(item=item, with_asterisk_ext=False, artist_separator=self.config.artist_separator())
         if album is not None:
             kwargs['album'] = album
         rel = Path(format_template(template, **kwargs))

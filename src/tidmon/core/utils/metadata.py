@@ -209,6 +209,7 @@ def add_track_metadata(
     cover_data: Optional[bytes] = None,
     comment: Optional[str] = None,
     genre: Optional[str] = None,
+    artist_separator: str = ", ",
 ) -> None:
     """
     Write FLAC or M4A metadata to a track file.
@@ -217,7 +218,7 @@ def add_track_metadata(
       - Source:  album.release_date  (date object or ISO string)
       - Storage: year-only string in both DATE (FLAC) and ©day (M4A)
     """
-    artists_str      = ", ".join([a.name for a in track.artists])
+    artists_str      = artist_separator.join([a.name for a in track.artists])
     album_artist_str = album.artist.name if album.artist else "Unknown Artist"
     clean_title      = _clean_track_title(track)
 
@@ -268,7 +269,7 @@ def add_track_metadata(
 # Video entry point
 # ============================================================
 
-def add_video_metadata(path: Path, video: Video) -> None:
+def add_video_metadata(path: Path, video: Video, artist_separator: str = ", ") -> None:
     """
     Write metadata to an MP4 video file.
     TS files are converted to MP4 first via ffmpeg.
@@ -294,7 +295,7 @@ def add_video_metadata(path: Path, video: Video) -> None:
         logger.error(f"Could not open MP4 for metadata: {path} → {e}")
         return
 
-    artists_str = ";".join([a.name.strip() for a in video.artists]) if video.artists else ""
+    artists_str = artist_separator.join([a.name.strip() for a in video.artists]) if video.artists else ""
 
     meta: dict = {
         "title":  video.title,

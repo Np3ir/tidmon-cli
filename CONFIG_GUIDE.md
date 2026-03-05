@@ -40,6 +40,7 @@ Here is a complete `config.json` with all available options and their defaults.
     "default": "/path/to/your/music/tidmon",
     "video": "/path/to/your/videos/tidmon"
   },
+  "artist_separator": ", ",
   "email_notifications": false,
   "smtp_server": "smtp.gmail.com",
   "smtp_port": 587,
@@ -98,6 +99,12 @@ Here is a complete `config.json` with all available options and their defaults.
 - `save_video`: `true` | `false`
   - Downloads music videos when fetching an artist's content.
 
+- `artist_separator`: `string`
+  - The string used to join multiple artist names in file metadata and path templates.
+  - **Default**: `", "` (comma + space) — e.g. `Daft Punk, Pharrell Williams`
+  - Set to `"; "` for semicolon-separated — e.g. `Daft Punk; Pharrell Williams`
+  - Example: `tidmon config set artist_separator "; "`
+
 ### Download Paths
 
 - `download_location`: `{...}`
@@ -135,8 +142,8 @@ The `templates` section controls the exact folder structure and filenames for yo
 | `{item.title}` | Track title | `Starboy` |
 | `{item.title_version}` | Track version | `Remastered` |
 | `{item.artist}` | Main track artist | `The Weeknd` |
-| `{item.artists}` | All artists, comma-separated | `The Weeknd, Daft Punk` |
-| `{item.artists_with_features}` | Main artist + featured artists | `The Weeknd ft. Daft Punk` |
+| `{item.artists}` | All artists, joined by `artist_separator` | `The Weeknd, Daft Punk` |
+| `{item.artists_with_features}` | Main + featured artists, joined by `artist_separator` | `The Weeknd, Daft Punk` |
 | `{item.number}` | Track number | `01` |
 | `{item.releaseDate}` | Track release date | `2016-11-25` |
 | `{item.explicit}` | "Explicit" if explicit | `Explicit` |
@@ -149,7 +156,7 @@ The `templates` section controls the exact folder structure and filenames for yo
 |---|---|---|
 | `{album.title}` | Album title | `Starboy` |
 | `{album.artist}` | Main album artist | `The Weeknd` |
-| `{album.artists}` | All album artists, comma-separated | `The Weeknd` |
+| `{album.artists}` | All album artists, joined by `artist_separator` | `The Weeknd` |
 | `{album.date}` | Album release date | `2016-11-25` |
 | `{album.year}` | Album release year | `2016` |
 | `{album.release}` | Release type | `ALBUM` |
