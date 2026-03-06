@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, Union
 from pydantic import BaseModel
 
 
@@ -79,13 +79,13 @@ class AuthResponse(BaseModel):
         postalcode: Optional[str] = None
         usState: Optional[str] = None
         phoneNumber: Optional[str] = None
-        birthday: Optional[int] = None
-        channelId: int
-        parentId: int
+        birthday: Optional[Union[int, str]] = None
+        channelId: Optional[Union[int, str]] = None
+        parentId: Optional[Union[int, str]] = None
         acceptedEULA: bool
-        created: int
-        updated: int
-        facebookUid: int
+        created: Union[int, str]
+        updated: Union[int, str]
+        facebookUid: Optional[Union[int, str]] = None
         appleUid: Optional[str] = None
         googleUid: Optional[str] = None
         accountLinkCreated: bool
