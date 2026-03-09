@@ -209,6 +209,7 @@ def add_track_metadata(
     cover_data: Optional[bytes] = None,
     comment: Optional[str] = None,
     genre: Optional[str] = None,
+    artist_separator: str = ", ",
 ) -> None:
     """
     Write FLAC or M4A metadata to a track file.
@@ -217,7 +218,13 @@ def add_track_metadata(
       - Source:  album.release_date  (date object or ISO string)
       - Storage: year-only string in both DATE (FLAC) and ©day (M4A)
     """
-    artists_str      = ", ".join([a.name for a in track.artists])
+    # Build artists string using the same logic as the filename template:
+    # sort MAIN and FEATURED separately, then join — keeps metadata consistent with filename.
+    m_arts = sorted([a.name for a in track.artists if a.type == "MAIN" and a.name])
+    f_arts = sorted([a.name for a in track.artists if a.type == "FEATURED" and a.name])
+    if not m_arts and len(track.artists) == 1 and track.artists[0].name:
+        m_arts = [track.artists[0].name]
+    artists_str      = artist_separator.join(m_arts + f_arts)
     album_artist_str = album.artist.name if album.artist else "Unknown Artist"
     clean_title      = _clean_track_title(track)
 
