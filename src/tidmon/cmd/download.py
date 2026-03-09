@@ -347,6 +347,7 @@ class Download:
                     lyrics=lyrics_text,
                     cover_data=cover_data if self.config.embed_cover_enabled() else None,
                     genre=genre,
+                    artist_separator=self.config.get("artist_separator", ", "),
                 )
             except Exception as e:
                 logger.error(f"Error applying metadata to {task.track_title}: {e}")
@@ -481,6 +482,7 @@ class Download:
                                 lyrics=lyrics_text,
                                 cover_data=cover_data if self.config.embed_cover_enabled() else None,
                                 genre=genre,
+                                artist_separator=self.config.get("artist_separator", ", "),
                             )
                         except Exception as e:
                             logger.error(f"Error applying metadata to {task.track_title}: {e}")
