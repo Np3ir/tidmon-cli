@@ -222,11 +222,19 @@ def add_track_metadata(
     # sort MAIN and FEATURED separately, then join — keeps metadata consistent with filename.
     m_arts = sorted([a.name for a in track.artists if a.type == "MAIN" and a.name])
     f_arts = sorted([a.name for a in track.artists if a.type == "FEATURED" and a.name])
-    if not m_arts and len(track.artists) == 1 and track.artists[0].name:
-        m_arts = [track.artists[0].name]
+    # Fallback: if no typed artists found (e.g. API returned type=None), use all artists sorted
+    if not m_arts and not f_arts:
+        m_arts = sorted([a.name for a in track.artists if a.name])
+    # Last resort: use the singular track.artist field
+    if not m_arts and track.artist and track.artist.name:
+        m_arts = [track.artist.name]
     artists_str      = artist_separator.join(m_arts + f_arts)
     album_artist_str = album.artist.name if album.artist else "Unknown Artist"
-    clean_title      = _clean_track_title(track)
+
+    # Build title including version so it matches {item.title_version} used in the filename template
+    clean_title = _clean_track_title(track)
+    ver = track.version or ""
+    title_with_version = f"{clean_title} ({ver})" if ver else clean_title
 
     # FIX 4: Pass release_date as ISO string; _parse_year extracts the year
     # when writing tags — same pipeline as tiddl (caller passes string, writer extracts year)
@@ -241,7 +249,7 @@ def add_track_metadata(
     resolved_genre = genre or getattr(album, 'genre', None)
 
     common = dict(
-        title        = clean_title,
+        title        = title_with_version,
         track_number = str(track.track_number),
         disc_number  = str(track.volume_number),
         album_title  = album.title,
