@@ -465,7 +465,7 @@ def generate_template_data(
         if not m_arts and len(artists_raw) == 1 and artists_raw[0].name:
             m_arts = [artists_raw[0].name]
 
-        ver = item.version or ""
+        ver = (item.version or "").strip()
 
         is_dolby = False
         if isinstance(item, Track) and item.media_metadata and item.media_metadata.tags:

@@ -233,7 +233,7 @@ def add_track_metadata(
 
     # Build title including version so it matches {item.title_version} used in the filename template
     clean_title = _clean_track_title(track)
-    ver = track.version or ""
+    ver = (track.version or "").strip()
     title_with_version = f"{clean_title} ({ver})" if ver else clean_title
 
     # FIX 4: Pass release_date as ISO string; _parse_year extracts the year

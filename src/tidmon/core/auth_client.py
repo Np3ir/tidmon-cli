@@ -131,7 +131,8 @@ class AuthClient:
         print("Para autorizar la aplicación, visita:")
         print(f"  {verification_uri}  y introduce el código: {user_code}")
         print(f"{'*'*50}\n")
-        try: webbrowser.open(f"https://{verification_uri}")
+        login_url = verification_uri if verification_uri.startswith("http") else f"https://{verification_uri}"
+        try: webbrowser.open(login_url)
         except Exception: pass
 
         return self._poll_device_auth(auth_data['deviceCode'], auth_data.get('interval', 5), auth_data['expiresIn'])
