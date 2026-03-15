@@ -1,4 +1,7 @@
 import json
+import random
+import threading
+import time
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Type, TypeVar, Callable, Optional, Literal
@@ -6,7 +9,6 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 from time import sleep
-import time
 
 # CRITICAL FIX: Import HTTPError
 from requests.exceptions import JSONDecodeError, HTTPError
@@ -43,11 +45,15 @@ class TidalClientImproved:
         self,
         token: str,
         on_token_expiry: Optional[Callable[..., Optional[str]]] = None,
+        requests_per_minute: int = 50,
     ):
         self.on_token_expiry = on_token_expiry
-        # Rate limiting: stay under 50 req/min to avoid 429 on auth + API endpoints
+        # Rate limiting: thread-safe fixed interval + jitter + adaptive delay
+        safe_rpm = requests_per_minute if requests_per_minute > 0 else 50
         self._last_request_time: float = 0.0
-        self._request_interval: float = 60.0 / 50.0  # 1.2s between requests
+        self._request_interval: float = 60.0 / safe_rpm
+        self._rate_lock = threading.Lock()
+        self._rate_limit_delay: float = 0.0  # Adaptive: grows on 429, shrinks on success
 
         self.session = CachedSession(
             cache_name=get_appdata_dir() / "tidal_api_cache.sqlite",
@@ -85,18 +91,27 @@ class TidalClientImproved:
             # Bypass cache for stream/token-sensitive endpoints
             _no_cache = any(p in url for p in _NO_CACHE_PATTERNS)
 
-            # Rate limit: enforce minimum interval between real network requests.
-            # Cached responses skip this check since they don't hit the network.
-            import time as _time
-            _elapsed = _time.monotonic() - self._last_request_time
-            if _elapsed < self._request_interval:
-                _time.sleep(self._request_interval - _elapsed)
-            self._last_request_time = _time.monotonic()
+            # Adaptive delay: grows on 429, shrinks on success
+            if self._rate_limit_delay > 0:
+                time.sleep(self._rate_limit_delay)
+
+            # Rate limit: thread-safe fixed interval + jitter
+            with self._rate_lock:
+                elapsed = time.monotonic() - self._last_request_time
+                wait = self._request_interval - elapsed + random.uniform(0, 0.3)
+                if wait > 0:
+                    time.sleep(wait)
+                self._last_request_time = time.monotonic()
 
             response = self.session.get(
                 url, params=params,
                 expire_after=0 if _no_cache else None,
             )
+
+            # Cache hits don't consume API quota — release the slot
+            if getattr(response, 'from_cache', False):
+                with self._rate_lock:
+                    self._last_request_time = time.monotonic() - self._request_interval
             
             # Reactive token refresh on 401
             if response.status_code == 401 and not _refreshed:
@@ -117,6 +132,11 @@ class TidalClientImproved:
                         self.token = new_token  # Use setter to update headers
                         return self.fetch(model, endpoint, params, api_version, _refreshed=True)
                 log.error("Token refresh failed or callback not provided. Aborting.")
+
+            if response.status_code == 429:
+                self._rate_limit_delay = min(5.0, self._rate_limit_delay + 1.0)
+            elif response.status_code == 200:
+                self._rate_limit_delay = max(0.0, self._rate_limit_delay - 0.1)
 
             response.raise_for_status()
             return model(**response.json())

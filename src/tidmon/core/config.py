@@ -32,6 +32,7 @@ class Config:
             "default": str(Path.home() / "Music" / "tidmon"),
             "video": str(Path.home() / "Videos" / "tidmon")
         },
+        "requests_per_minute": 50,
         "debug_mode": False,
         "monitor_interval_hours": 24,
         "artist_separator": ", ",

@@ -5,6 +5,7 @@ from typing import Optional
 from .api import TidalAPI
 from .client import TidalClientImproved
 from .auth_client import AuthAPI, load_auth_data, save_auth_data
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ class TidalSession:
         client = TidalClientImproved(
             token=auth_data.token,
             on_token_expiry=_on_token_expiry,
+            requests_per_minute=Config().get("requests_per_minute", 50),
         )
 
         self.api = TidalAPI(
