@@ -167,7 +167,10 @@ class TidalAPI:
                 Artist, f"artists/{artist_id}", {"countryCode": self.country_code}
             )
         except Exception:
-            return None
+            pass
+        # v1 failed — try openapi.tidal.com v2
+        log.debug(f"v1 get_artist failed for {artist_id}, trying v2 fallback...")
+        return self._get_artist_v2(artist_id)
 
     def get_artist_albums(self, artist_id: int) -> Optional[List[Album]]:
         all_items = []
@@ -216,6 +219,51 @@ class TidalAPI:
 
         return all_items if any_success else None
 
+    # ── openapi.tidal.com/v2 helpers ─────────────────────────────────────────
+
+    _V2_BASE = "https://openapi.tidal.com/v2"
+
+    def _v2_get(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
+        """GET request to openapi.tidal.com/v2. Returns parsed JSON body or None."""
+        bearer = self.client.session.headers.get("Authorization", "")
+        merged = {"countryCode": self.country_code, **(params or {})}
+        try:
+            resp = _requests.get(
+                f"{self._V2_BASE}/{endpoint}",
+                headers={"Authorization": bearer, "Accept": "application/vnd.api+json"},
+                params=merged,
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                log.debug(f"v2 GET {endpoint} returned {resp.status_code}")
+                return None
+            return resp.json()
+        except Exception as e:
+            log.debug(f"v2 GET {endpoint} error: {e}")
+            return None
+
+    def _get_artist_v2(self, artist_id: ID) -> Optional[Artist]:
+        """Fetch a single artist from openapi.tidal.com/v2."""
+        body = self._v2_get(f"artists/{artist_id}")
+        if not body:
+            return None
+        data = body.get("data", {})
+        attrs = data.get("attributes", {})
+        try:
+            # v2 picture is a list of {url, width, height}; keep only the UUID-like
+            # path so callers that expect a v1 UUID string don't break entirely.
+            pictures = attrs.get("picture", []) or []
+            picture = pictures[0].get("url") if pictures else None
+            return Artist(
+                id=int(data["id"]),
+                name=attrs.get("name", "Unknown"),
+                popularity=attrs.get("popularity"),
+                picture=picture,
+            )
+        except Exception as e:
+            log.debug(f"v2 artist parse error for id={artist_id}: {e}")
+            return None
+
     def _get_artist_albums_v2(self, artist_id: int) -> List[Album]:
         """Fallback: fetch artist albums from openapi.tidal.com/v2 (JSON:API).
 
@@ -223,38 +271,22 @@ class TidalAPI:
         has releases on the TIDAL web player (e.g. newly-onboarded artists
         not yet indexed on the v1 catalogue endpoint).
         """
-        V2_BASE = "https://openapi.tidal.com/v2"
-        bearer = self.client.session.headers.get("Authorization", "")
-        headers = {
-            "Authorization": bearer,
-            "Accept": "application/vnd.api+json",
-        }
-
         # Step 1 — collect album IDs via cursor-paginated relationship endpoint
         album_ids: list = []
         cursor: Optional[str] = None
         while True:
-            params: dict = {"countryCode": self.country_code}
+            params: dict = {}
             if cursor:
                 params["page[cursor]"] = cursor
-            try:
-                resp = _requests.get(
-                    f"{V2_BASE}/artists/{artist_id}/relationships/albums",
-                    headers=headers, params=params, timeout=15,
-                )
-                if resp.status_code != 200:
-                    log.debug(f"v2 relationship endpoint returned {resp.status_code} for artist {artist_id}")
-                    break
-                body = resp.json()
-                items = body.get("data", [])
-                if not items:
-                    break
-                album_ids.extend(item["id"] for item in items)
-                cursor = body.get("meta", {}).get("nextCursor")
-                if not cursor:
-                    break
-            except Exception as e:
-                log.debug(f"v2 artist albums relationship error: {e}")
+            body = self._v2_get(f"artists/{artist_id}/relationships/albums", params)
+            if not body:
+                break
+            items = body.get("data", [])
+            if not items:
+                break
+            album_ids.extend(item["id"] for item in items)
+            cursor = body.get("meta", {}).get("nextCursor")
+            if not cursor:
                 break
 
         if not album_ids:
@@ -265,35 +297,24 @@ class TidalAPI:
         batch_size = 20
         for i in range(0, len(album_ids), batch_size):
             batch = album_ids[i:i + batch_size]
-            try:
-                params = {
-                    "countryCode": self.country_code,
-                    "filter[id]": ",".join(str(aid) for aid in batch),
-                }
-                resp = _requests.get(
-                    f"{V2_BASE}/albums",
-                    headers=headers, params=params, timeout=15,
-                )
-                if resp.status_code != 200:
-                    log.debug(f"v2 albums batch returned {resp.status_code}")
-                    continue
-                for item in resp.json().get("data", []):
-                    attrs = item.get("attributes", {})
-                    try:
-                        album = Album(
-                            id=int(item["id"]),
-                            title=attrs.get("title", "Unknown"),
-                            number_of_tracks=attrs.get("numberOfItems"),
-                            release_date=attrs.get("releaseDate"),
-                            type=attrs.get("albumType"),
-                            explicit=attrs.get("explicit"),
-                        )
-                        if album.id not in {a.id for a in albums}:
-                            albums.append(album)
-                    except Exception as e:
-                        log.debug(f"v2 album parse error for id={item.get('id')}: {e}")
-            except Exception as e:
-                log.debug(f"v2 albums batch fetch error: {e}")
+            body = self._v2_get("albums", {"filter[id]": ",".join(str(aid) for aid in batch)})
+            if not body:
+                continue
+            for item in body.get("data", []):
+                attrs = item.get("attributes", {})
+                try:
+                    album = Album(
+                        id=int(item["id"]),
+                        title=attrs.get("title", "Unknown"),
+                        number_of_tracks=attrs.get("numberOfItems"),
+                        release_date=attrs.get("releaseDate"),
+                        type=attrs.get("albumType"),
+                        explicit=attrs.get("explicit"),
+                    )
+                    if album.id not in {a.id for a in albums}:
+                        albums.append(album)
+                except Exception as e:
+                    log.debug(f"v2 album parse error for id={item.get('id')}: {e}")
 
         return albums
 
