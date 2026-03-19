@@ -486,6 +486,25 @@ class Database:
         self.close()
 
 
+    def get_artist_stats(self) -> list:
+        """Returns per-artist stats: album count and total tracks (songs)."""
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute('''
+                SELECT ar.artist_id, ar.artist_name,
+                       COUNT(a.album_id) AS album_count,
+                       COALESCE(SUM(a.number_of_tracks), 0) AS total_tracks
+                FROM artists ar
+                LEFT JOIN albums a ON ar.artist_id = a.artist_id
+                WHERE ar.active = 1
+                GROUP BY ar.artist_id, ar.artist_name
+                ORDER BY ar.artist_name
+            ''')
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to get artist stats: {e}")
+            return []
+
     def get_album_counts_per_artist(self) -> dict:
         """Returns {artist_id: album_count} for all artists in one query."""
         try:

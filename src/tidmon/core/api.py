@@ -168,9 +168,10 @@ class TidalAPI:
         except Exception:
             return None
 
-    def get_artist_albums(self, artist_id: int) -> List[Album]:
+    def get_artist_albums(self, artist_id: int) -> Optional[List[Album]]:
         all_items = []
         seen_ids: set = set()
+        any_success = False
 
         for f in ["ALBUMS", "EPSANDSINGLES"]:
             offset = 0
@@ -185,6 +186,7 @@ class TidalAPI:
                     result = self._fetch_with_retry(
                         ArtistAlbumsItems, f'artists/{artist_id}/albums', params=params
                     )
+                    any_success = True
                     if not result or not result.items:
                         break
 
@@ -198,7 +200,8 @@ class TidalAPI:
                     offset += len(result.items)
                 except Exception:
                     break
-        return all_items
+
+        return all_items if any_success else None
 
     def get_artist_videos(self, artist_id: ID) -> List[Video]:
         all_items = []

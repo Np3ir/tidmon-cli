@@ -114,8 +114,8 @@ class Refresh:
         api_albums = self.api.get_artist_albums(artist_id)
 
         if api_albums is None:
-            print(f"  (API error)")
-            self.db.update_artist_check_time(artist_id)
+            print(f"  ✗ API error (skipped, will retry next refresh)")
+            logger.warning(f"API returned no data for {artist_name} (ID: {artist_id}) — not updating check time")
             return
 
         # Filter albums by release date if options are provided

@@ -364,6 +364,15 @@ def show_albums(artist, pending, since, until, export):
         s.show_albums(artist=artist, pending=pending, since=since, until=until, export=export)
 
 
+@show.command('report')
+@click.option('--export', default=None, metavar='FILE',
+              help='Export to file: .html for HTML report, any other ext for CSV.')
+def show_report(export):
+    """Show per-artist count of albums and songs."""
+    with Show() as s:
+        s.show_report(export=export)
+
+
 @show.command('discography')
 @click.option('--format', '-f', 'fmt',
               type=click.Choice(['csv', 'txt', 'html'], case_sensitive=False),
