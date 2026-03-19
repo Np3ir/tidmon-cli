@@ -316,20 +316,20 @@ class Show:
     # ── Report ───────────────────────────────────────────────────────────────
 
     def show_report(self, export: str = None) -> None:
-        """Show a summary report: album count and total songs per artist."""
+        """Show a summary report: release count (all types) and total songs per artist."""
         stats = self.db.get_artist_stats()
 
         if not stats:
             console.print("[yellow]No artists in database.[/]")
             return
 
-        total_albums = sum(r["album_count"] for r in stats)
+        total_releases = sum(r["releases"] for r in stats)
         total_tracks = sum(r["total_tracks"] for r in stats)
 
         if export:
             path = Path(export)
             if path.suffix.lower() == ".html":
-                self._export_report_html(stats, total_albums, total_tracks, path)
+                self._export_report_html(stats, total_releases, total_tracks, path)
             else:
                 self._export_report_csv(stats, path)
             return
@@ -343,23 +343,23 @@ class Show:
         )
         table.add_column("Artist", style="bold", min_width=25)
         table.add_column("ID", style="dim", justify="right")
-        table.add_column("Albums", justify="right")
+        table.add_column("Releases", justify="right")
         table.add_column("Songs", justify="right")
 
         for r in stats:
             table.add_row(
                 r["artist_name"],
                 str(r["artist_id"]),
-                str(r["album_count"]),
+                str(r["releases"]),
                 str(r["total_tracks"]),
             )
 
         console.print()
-        console.print(Rule("[bold]Artist Report — Albums & Songs", style="cyan"))
+        console.print(Rule("[bold]Artist Report — Releases & Songs", style="cyan"))
         console.print(table)
         console.print(
             f"[dim]Total: {len(stats)} artist(s) · "
-            f"{total_albums} album(s) · {total_tracks} song(s)[/]\n"
+            f"{total_releases} release(s) · {total_tracks} song(s)[/]\n"
         )
 
     def _export_report_csv(self, stats: list, path: Path) -> None:
@@ -367,20 +367,20 @@ class Show:
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(
                 f,
-                fieldnames=["artist_id", "artist_name", "album_count", "total_tracks"],
+                fieldnames=["artist_id", "artist_name", "releases", "total_tracks"],
                 extrasaction="ignore",
             )
             writer.writeheader()
             writer.writerows(stats)
         console.print(f"[green]Exported {len(stats)} artist(s) to[/] {path}")
 
-    def _export_report_html(self, stats: list, total_albums: int,
+    def _export_report_html(self, stats: list, total_releases: int,
                              total_tracks: int, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         rows_html = "\n".join(
             f"<tr><td>{r['artist_name']}</td>"
             f"<td class='num'>{r['artist_id']}</td>"
-            f"<td class='num'>{r['album_count']}</td>"
+            f"<td class='num'>{r['releases']}</td>"
             f"<td class='num'>{r['total_tracks']}</td></tr>"
             for r in stats
         )
@@ -402,10 +402,10 @@ class Show:
 </style>
 </head>
 <body>
-<h1>Artist Report — Albums &amp; Songs</h1>
+<h1>Artist Report — Releases &amp; Songs</h1>
 <table>
   <thead>
-    <tr><th>Artist</th><th>ID</th><th>Albums</th><th>Songs</th></tr>
+    <tr><th>Artist</th><th>ID</th><th>Releases</th><th>Songs</th></tr>
   </thead>
   <tbody>
 {rows_html}
@@ -414,7 +414,7 @@ class Show:
     <tr>
       <td><strong>TOTAL ({len(stats)} artists)</strong></td>
       <td></td>
-      <td class="num">{total_albums}</td>
+      <td class="num">{total_releases}</td>
       <td class="num">{total_tracks}</td>
     </tr>
   </tfoot>

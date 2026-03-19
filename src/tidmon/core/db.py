@@ -487,12 +487,12 @@ class Database:
 
 
     def get_artist_stats(self) -> list:
-        """Returns per-artist stats: album count and total tracks (songs)."""
+        """Returns per-artist stats: total release count (all types) and total tracks."""
         try:
             cursor = self.connection.cursor()
             cursor.execute('''
                 SELECT ar.artist_id, ar.artist_name,
-                       COUNT(a.album_id) AS album_count,
+                       COUNT(a.album_id) AS releases,
                        COALESCE(SUM(a.number_of_tracks), 0) AS total_tracks
                 FROM artists ar
                 LEFT JOIN albums a ON ar.artist_id = a.artist_id
