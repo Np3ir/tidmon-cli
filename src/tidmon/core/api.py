@@ -1,6 +1,7 @@
 import time
 import random
 import logging
+import requests as _requests
 from typing import Literal, TypeAlias, Any, List, Optional
 
 from requests.exceptions import (
@@ -205,7 +206,96 @@ class TidalAPI:
             if filter_success:
                 any_success = True
 
+        # v1 succeeded but returned nothing — try openapi.tidal.com v2 as fallback
+        if any_success and not all_items:
+            log.debug(f"v1 returned no albums for artist {artist_id}, trying v2 fallback...")
+            v2_albums = self._get_artist_albums_v2(artist_id)
+            if v2_albums:
+                log.info(f"v2 fallback found {len(v2_albums)} release(s) for artist {artist_id}")
+            return v2_albums
+
         return all_items if any_success else None
+
+    def _get_artist_albums_v2(self, artist_id: int) -> List[Album]:
+        """Fallback: fetch artist albums from openapi.tidal.com/v2 (JSON:API).
+
+        Used when the v1 API returns an empty list for an artist that visibly
+        has releases on the TIDAL web player (e.g. newly-onboarded artists
+        not yet indexed on the v1 catalogue endpoint).
+        """
+        V2_BASE = "https://openapi.tidal.com/v2"
+        bearer = self.client.session.headers.get("Authorization", "")
+        headers = {
+            "Authorization": bearer,
+            "Accept": "application/vnd.api+json",
+        }
+
+        # Step 1 — collect album IDs via cursor-paginated relationship endpoint
+        album_ids: list = []
+        cursor: Optional[str] = None
+        while True:
+            params: dict = {"countryCode": self.country_code}
+            if cursor:
+                params["page[cursor]"] = cursor
+            try:
+                resp = _requests.get(
+                    f"{V2_BASE}/artists/{artist_id}/relationships/albums",
+                    headers=headers, params=params, timeout=15,
+                )
+                if resp.status_code != 200:
+                    log.debug(f"v2 relationship endpoint returned {resp.status_code} for artist {artist_id}")
+                    break
+                body = resp.json()
+                items = body.get("data", [])
+                if not items:
+                    break
+                album_ids.extend(item["id"] for item in items)
+                cursor = body.get("meta", {}).get("nextCursor")
+                if not cursor:
+                    break
+            except Exception as e:
+                log.debug(f"v2 artist albums relationship error: {e}")
+                break
+
+        if not album_ids:
+            return []
+
+        # Step 2 — fetch album details in batches of 20
+        albums: List[Album] = []
+        batch_size = 20
+        for i in range(0, len(album_ids), batch_size):
+            batch = album_ids[i:i + batch_size]
+            try:
+                params = {
+                    "countryCode": self.country_code,
+                    "filter[id]": ",".join(str(aid) for aid in batch),
+                }
+                resp = _requests.get(
+                    f"{V2_BASE}/albums",
+                    headers=headers, params=params, timeout=15,
+                )
+                if resp.status_code != 200:
+                    log.debug(f"v2 albums batch returned {resp.status_code}")
+                    continue
+                for item in resp.json().get("data", []):
+                    attrs = item.get("attributes", {})
+                    try:
+                        album = Album(
+                            id=int(item["id"]),
+                            title=attrs.get("title", "Unknown"),
+                            number_of_tracks=attrs.get("numberOfItems"),
+                            release_date=attrs.get("releaseDate"),
+                            type=attrs.get("albumType"),
+                            explicit=attrs.get("explicit"),
+                        )
+                        if album.id not in {a.id for a in albums}:
+                            albums.append(album)
+                    except Exception as e:
+                        log.debug(f"v2 album parse error for id={item.get('id')}: {e}")
+            except Exception as e:
+                log.debug(f"v2 albums batch fetch error: {e}")
+
+        return albums
 
     def get_artist_videos(self, artist_id: ID) -> List[Video]:
         all_items = []
