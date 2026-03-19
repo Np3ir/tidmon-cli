@@ -111,7 +111,7 @@ class Refresh:
         artist_name = artist['artist_name']
 
         logger.info(f"Refreshing: {artist_name}")
-        console.print(f"  [dim]•[/] {artist_name}...", end='')
+        console.print(f"  [dim]-[/] {artist_name}...", end='')
 
         api_albums = self.api.get_artist_albums(artist_id)
 
@@ -181,7 +181,7 @@ class Refresh:
         playlist_name = playlist['name']
 
         logger.info(f"Refreshing playlist: {playlist_name}")
-        console.print(f"  [dim]•[/] {playlist_name}...", end='')
+        console.print(f"  [dim]-[/] {playlist_name}...", end='')
 
         try:
             current_tracks = self.api.get_playlist_items(playlist_uuid)
