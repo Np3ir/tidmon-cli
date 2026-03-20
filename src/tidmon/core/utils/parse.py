@@ -51,19 +51,54 @@ def parse_manifest_XML(xml_content: str) -> Tuple[List[str], str]:
     return urls, codecs
 
 
+def _parse_v2_hls_track(m3u8_url: str) -> Tuple[List[str], str]:
+    """Fetch and parse a TIDAL v2 HLS M3U8 URL into segment URLs."""
+    with Session() as s:
+        playlist = M3U8(s.get(m3u8_url).text)
+    # If master M3U8 (has variant playlists), follow the best-quality variant
+    if playlist.playlists:
+        best_uri = playlist.playlists[-1].uri
+        with Session() as s:
+            playlist = M3U8(s.get(best_uri).text)
+    urls = [seg.uri for seg in playlist.segments if seg.uri]
+    if not urls:
+        raise ValueError("No segments found in v2 HLS track manifest")
+    return urls, ".flac"
+
+
+def _parse_v2_dash_track(mpd_url: str) -> Tuple[List[str], str]:
+    """Fetch and parse a TIDAL v2 MPEG-DASH MPD URL into segment URLs."""
+    with Session() as s:
+        mpd_content = s.get(mpd_url).text
+    urls, codecs = parse_manifest_XML(mpd_content)
+    extension = ".m4a" if codecs != "flac" else ".flac"
+    return urls, extension
+
+
 def parse_track_stream(track_stream: TrackStream) -> Tuple[List[str], str]:
     """
     Parse URLs and file extension from a TrackStream.
 
     Manifest types:
-      application/vnd.tidal.bts  → JSON  (LOW / HIGH / LOSSLESS)
-      application/dash+xml       → DASH XML  (HI_RES_LOSSLESS)
+      application/vnd.tidal.bts    → JSON  (LOW / HIGH / LOSSLESS)
+      application/dash+xml         → DASH XML  (HI_RES_LOSSLESS)
+      application/vnd.tidal.v2.hls → v2 direct M3U8 URL  (LOSSLESS/FLAC)
+      application/vnd.tidal.v2.dash→ v2 direct MPD URL   (LOSSLESS/FLAC)
 
     Returns:
         (urls, extension)  where extension is one of '.flac', '.m4a'
     """
+    manifest_mime = track_stream.manifest_mime_type
+
+    # v2 paths: manifest field holds a direct URL, not base64
+    if manifest_mime == "application/vnd.tidal.v2.hls":
+        return _parse_v2_hls_track(track_stream.manifest)
+
+    if manifest_mime == "application/vnd.tidal.v2.dash":
+        return _parse_v2_dash_track(track_stream.manifest)
+
+    # v1 paths: manifest field is base64-encoded
     decoded_manifest = b64decode(track_stream.manifest).decode()
-    manifest_mime    = track_stream.manifest_mime_type
 
     if manifest_mime == "application/vnd.tidal.bts":
         manifest_data = json.loads(decoded_manifest)
@@ -83,7 +118,6 @@ def parse_track_stream(track_stream: TrackStream) -> Tuple[List[str], str]:
     elif codecs.startswith("mp4"):
         extension = ".m4a"
     else:
-        # FIX: raise instead of silently defaulting — unknown codec should be investigated
         raise ValueError(
             f"Unknown codec {codecs!r} for track stream "
             f"(quality={track_stream.audio_quality})"

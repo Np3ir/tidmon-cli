@@ -532,6 +532,216 @@ class TidalAPI:
             subtitles=attrs.get("lrcText"),
         )
 
+    def _get_video_v2(self, video_id: ID) -> Optional[Video]:
+        """Fallback: fetch a single video from openapi.tidal.com/v2."""
+        body = self._v2_get(f"videos/{video_id}")
+        if not body:
+            return None
+        data = body.get("data", {})
+        attrs = data.get("attributes", {})
+        try:
+            return Video(
+                id=int(data["id"]),
+                title=attrs.get("title", "Unknown"),
+                duration=self._iso_to_sec(attrs.get("duration")),
+                explicit=attrs.get("explicit"),
+                releaseDate=attrs.get("releaseDate"),
+            )
+        except Exception as e:
+            log.debug(f"v2 video parse error for id={video_id}: {e}")
+            return None
+
+    def _get_track_stream_v2(self, track_id: ID, quality: str = "LOSSLESS") -> Optional[TrackStream]:
+        """Fallback: fetch track stream manifest from openapi.tidal.com/v2.
+
+        Tries HLS first, then MPEG_DASH. Returns a TrackStream whose manifest
+        field holds a direct URL (not base64) with a v2-specific MIME type that
+        parse_track_stream() knows how to handle.
+        """
+        _FMT: dict = {
+            "MAX":             "FLAC",
+            "HI_RES_LOSSLESS": "FLAC_HIRES",
+            "LOSSLESS":        "FLAC",
+            "HIGH":            "AACLC",
+            "LOW":             "AACLC",
+        }
+        fmt = _FMT.get(quality, "FLAC")
+        base_params = {"formats": fmt, "uriScheme": "HTTPS", "usage": "PLAYBACK", "adaptive": "false"}
+
+        manifest_mime = "application/vnd.tidal.v2.hls"
+        body = self._v2_get(f"trackManifests/{track_id}", {**base_params, "manifestType": "HLS"})
+        if not body:
+            manifest_mime = "application/vnd.tidal.v2.dash"
+            body = self._v2_get(f"trackManifests/{track_id}", {**base_params, "manifestType": "MPEG_DASH"})
+        if not body:
+            return None
+
+        attrs = body.get("data", {}).get("attributes", {})
+        uri = attrs.get("uri")
+        if not uri:
+            return None
+        try:
+            return TrackStream(
+                trackId=int(track_id),
+                audioQuality=quality,
+                manifest=uri,
+                manifestMimeType=manifest_mime,
+            )
+        except Exception as e:
+            log.debug(f"v2 track stream parse error for id={track_id}: {e}")
+            return None
+
+    def _search_v2(self, query: str, search_type: str = "ALL", limit: int = 5) -> Optional[Search]:
+        """Fallback: search via openapi.tidal.com/v2 /searchResults/{query}.
+
+        Returns a Search object populated from the `included` array.
+        """
+        from tidmon.core.models.base import (
+            ArtistSearchItems as _ASI, ArtistAlbumsItems as _AAI, AlbumItems as _AI,
+        )
+        _INCLUDE_MAP = {
+            "ARTISTS": "artists",
+            "ALBUMS":  "albums",
+            "TRACKS":  "tracks",
+            "ALL":     "artists,tracks,albums",
+        }
+        include = _INCLUDE_MAP.get(search_type, "artists,tracks,albums")
+        body = self._v2_get(f"searchResults/{query}", {"include": include})
+        if not body:
+            return None
+
+        artists: List[Artist] = []
+        albums:  List[Album]  = []
+        tracks:  List[Track]  = []
+
+        for item in body.get("included", []):
+            t     = item.get("type")
+            attrs = item.get("attributes", {})
+            try:
+                if t == "artists":
+                    pics    = attrs.get("picture", []) or []
+                    picture = pics[0].get("url") if pics else None
+                    artists.append(Artist(
+                        id=int(item["id"]), name=attrs.get("name", "Unknown"),
+                        popularity=attrs.get("popularity"), picture=picture,
+                    ))
+                elif t == "albums":
+                    albums.append(Album(
+                        id=int(item["id"]), title=attrs.get("title", "Unknown"),
+                        numberOfTracks=attrs.get("numberOfItems"),
+                        releaseDate=attrs.get("releaseDate"),
+                        type=attrs.get("albumType"), explicit=attrs.get("explicit"),
+                    ))
+                elif t == "tracks":
+                    tracks.append(Track(
+                        id=int(item["id"]), title=attrs.get("title", "Unknown"),
+                        duration=self._iso_to_sec(attrs.get("duration")),
+                        isrc=attrs.get("isrc"), explicit=attrs.get("explicit"),
+                        version=attrs.get("version"),
+                        audio_quality=self._v2_audio_quality(attrs.get("mediaTags") or []),
+                    ))
+            except Exception as e:
+                log.debug(f"v2 search parse error type={t} id={item.get('id')}: {e}")
+
+        if not artists and not albums and not tracks:
+            return None
+
+        return Search(
+            artists=_ASI(limit=limit, offset=0, totalNumberOfItems=len(artists), items=artists[:limit]) if artists else None,
+            albums =_AAI(limit=limit, offset=0, totalNumberOfItems=len(albums),  items=albums[:limit])  if albums  else None,
+            tracks =_AI( limit=limit, offset=0, totalNumberOfItems=len(tracks),  items=tracks[:limit])  if tracks  else None,
+        )
+
+    def _get_artist_bio_v2(self, artist_id: ID) -> Optional["ArtistBio"]:
+        """Fallback: fetch artist biography from openapi.tidal.com/v2 (two-step).
+
+        Step 1: resolve biography ID from /artists/{id}/relationships/biography.
+        Step 2: fetch content from /artistBiographies/{id}.
+        """
+        from tidmon.core.models.resources import ArtistBio as _ArtistBio
+        body = self._v2_get(f"artists/{artist_id}/relationships/biography")
+        if not body:
+            return None
+        bio_id = (body.get("data") or {}).get("id")
+        if not bio_id:
+            return None
+        body2 = self._v2_get(f"artistBiographies/{bio_id}")
+        if not body2:
+            return None
+        attrs = body2.get("data", {}).get("attributes", {})
+        try:
+            return _ArtistBio(
+                text=attrs.get("text"),
+                source=attrs.get("source"),
+            )
+        except Exception as e:
+            log.debug(f"v2 artist bio parse error for id={artist_id}: {e}")
+            return None
+
+    def _get_artist_top_tracks_v2(self, artist_id: ID) -> List[Track]:
+        """Fallback: fetch artist top tracks from openapi.tidal.com/v2.
+
+        Uses /artists/{id}/relationships/tracks?collapseBy=NONE&include=tracks
+        which returns up to 20 tracks with full attributes in the `included` array.
+        """
+        body = self._v2_get(
+            f"artists/{artist_id}/relationships/tracks",
+            {"collapseBy": "NONE", "include": "tracks"},
+        )
+        if not body:
+            return []
+        tracks: List[Track] = []
+        for item in body.get("included", []):
+            if item.get("type") != "tracks":
+                continue
+            attrs = item.get("attributes", {})
+            try:
+                tracks.append(Track(
+                    id=int(item["id"]),
+                    title=attrs.get("title", "Unknown"),
+                    duration=self._iso_to_sec(attrs.get("duration")),
+                    isrc=attrs.get("isrc"),
+                    explicit=attrs.get("explicit"),
+                    version=attrs.get("version"),
+                    copyright=(attrs.get("copyright") or {}).get("text"),
+                    audio_quality=self._v2_audio_quality(attrs.get("mediaTags") or []),
+                ))
+            except Exception as e:
+                log.debug(f"v2 top track parse error id={item.get('id')}: {e}")
+        return tracks
+
+    def _get_track_credits_v2(self, track_id: ID) -> Optional["TrackCredits"]:
+        """Fallback: fetch track credits from openapi.tidal.com/v2.
+
+        Uses /tracks/{id}/relationships/credits?include=credits which returns
+        contributor name and role in the `included` array.
+        """
+        from tidmon.core.models.resources import TrackCredits as _TC, Contributor
+        body = self._v2_get(
+            f"tracks/{track_id}/relationships/credits",
+            {"include": "credits"},
+        )
+        if not body:
+            return None
+        contributors = []
+        for item in body.get("included", []):
+            if item.get("type") != "credits":
+                continue
+            attrs = item.get("attributes", {})
+            name = attrs.get("name")
+            if name:
+                contributors.append(Contributor(
+                    name=name,
+                    role=attrs.get("role"),
+                ))
+        if not contributors:
+            return None
+        try:
+            return _TC(trackId=int(track_id), contributors=contributors)
+        except Exception as e:
+            log.debug(f"v2 track credits parse error for id={track_id}: {e}")
+            return None
+
     def get_artist_videos(self, artist_id: ID) -> List[Video]:
         all_items = []
         offset = 0
@@ -572,7 +782,9 @@ class TidalAPI:
                 ArtistBio, f"artists/{artist_id}/bio", {"countryCode": self.country_code}
             )
         except Exception:
-            return None
+            pass
+        log.debug(f"v1 get_artist_bio failed for {artist_id}, trying v2 fallback...")
+        return self._get_artist_bio_v2(artist_id)
 
     def get_artist_links(self, artist_id: ID) -> Optional[ArtistLinks]:
         try:
@@ -592,7 +804,8 @@ class TidalAPI:
                 return result.items
         except Exception:
             pass
-        return []
+        log.debug(f"v1 get_artist_top_tracks failed for {artist_id}, trying v2 fallback...")
+        return self._get_artist_top_tracks_v2(artist_id)
 
     # ── Playlists ─────────────────────────────────────────────────────────────
 
@@ -676,7 +889,9 @@ class TidalAPI:
                 max_retries=1, params=params
             )
         except Exception:
-            return None
+            pass
+        log.debug(f"v1 get_track_stream failed for {track_id}/{quality}, trying v2 fallback...")
+        return self._get_track_stream_v2(track_id, quality)
 
     def get_track_credits(self, track_id: ID) -> Optional[TrackCredits]:
         try:
@@ -685,7 +900,9 @@ class TidalAPI:
                 {"countryCode": self.country_code}
             )
         except Exception:
-            return None
+            pass
+        log.debug(f"v1 get_track_credits failed for {track_id}, trying v2 fallback...")
+        return self._get_track_credits_v2(track_id)
 
     # ── Videos ────────────────────────────────────────────────────────────────
 
@@ -695,7 +912,9 @@ class TidalAPI:
                 Video, f"videos/{video_id}", {"countryCode": self.country_code}
             )
         except Exception:
-            return None
+            pass
+        log.debug(f"v1 get_video failed for {video_id}, trying v2 fallback...")
+        return self._get_video_v2(video_id)
 
     def get_video_stream(self, video_id: int, quality: str = "HIGH") -> Optional[VideoStream]:
         params = {
@@ -731,7 +950,59 @@ class TidalAPI:
         try:
             return self._fetch_with_retry(Search, 'search', params)
         except Exception:
-            return None
+            pass
+        log.debug(f"v1 search failed for {query!r}, trying v2 fallback...")
+        return self._search_v2(query, search_type, limit)
+
+    # ── Similarity / Discovery (v2-only) ──────────────────────────────────────
+
+    def get_similar_artists(self, artist_id: ID) -> List[Artist]:
+        """Fetch similar artists via openapi.tidal.com/v2 (v2-only endpoint)."""
+        body = self._v2_get(
+            f"artists/{artist_id}/relationships/similarArtists",
+            {"include": "similarArtists"},
+        )
+        if not body:
+            return []
+        artists: List[Artist] = []
+        for item in body.get("included", []):
+            if item.get("type") != "artists":
+                continue
+            attrs = item.get("attributes", {})
+            try:
+                pics    = attrs.get("picture", []) or []
+                picture = pics[0].get("url") if pics else None
+                artists.append(Artist(
+                    id=int(item["id"]), name=attrs.get("name", "Unknown"),
+                    popularity=attrs.get("popularity"), picture=picture,
+                ))
+            except Exception as e:
+                log.debug(f"v2 similar artist parse error id={item.get('id')}: {e}")
+        return artists
+
+    def get_similar_albums(self, album_id: ID) -> List[Album]:
+        """Fetch similar albums via openapi.tidal.com/v2 (v2-only endpoint)."""
+        body = self._v2_get(
+            f"albums/{album_id}/relationships/similarAlbums",
+            {"include": "similarAlbums"},
+        )
+        if not body:
+            return []
+        albums: List[Album] = []
+        for item in body.get("included", []):
+            if item.get("type") != "albums":
+                continue
+            attrs = item.get("attributes", {})
+            try:
+                albums.append(Album(
+                    id=int(item["id"]), title=attrs.get("title", "Unknown"),
+                    numberOfTracks=attrs.get("numberOfItems"),
+                    releaseDate=attrs.get("releaseDate"),
+                    type=attrs.get("albumType"), explicit=attrs.get("explicit"),
+                ))
+            except Exception as e:
+                log.debug(f"v2 similar album parse error id={item.get('id')}: {e}")
+        return albums
 
     # ── Favorites ─────────────────────────────────────────────────────────────
 
@@ -745,3 +1016,52 @@ class TidalAPI:
             return self._fetch_with_retry(Favorites, f"users/{user_id}/favorites/artists", params)
         except Exception:
             return None
+
+    def get_user_collection_artists(self, user_id: ID) -> List[Artist]:
+        """Fetch the user's saved artists via openapi.tidal.com/v2 userCollections."""
+        body = self._v2_get(
+            f"userCollections/{user_id}/relationships/artists",
+            {"include": "artists"},
+        )
+        if not body:
+            return []
+        artists: List[Artist] = []
+        for item in body.get("included", []):
+            if item.get("type") != "artists":
+                continue
+            attrs = item.get("attributes", {})
+            try:
+                pics    = attrs.get("picture", []) or []
+                picture = pics[0].get("url") if pics else None
+                artists.append(Artist(
+                    id=int(item["id"]), name=attrs.get("name", "Unknown"),
+                    popularity=attrs.get("popularity"), picture=picture,
+                ))
+            except Exception as e:
+                log.debug(f"v2 user collection artist parse error id={item.get('id')}: {e}")
+        return artists
+
+    def get_user_collection_tracks(self, user_id: ID) -> List[Track]:
+        """Fetch the user's saved tracks via openapi.tidal.com/v2 userCollections."""
+        body = self._v2_get(
+            f"userCollections/{user_id}/relationships/tracks",
+            {"include": "tracks"},
+        )
+        if not body:
+            return []
+        tracks: List[Track] = []
+        for item in body.get("included", []):
+            if item.get("type") != "tracks":
+                continue
+            attrs = item.get("attributes", {})
+            try:
+                tracks.append(Track(
+                    id=int(item["id"]), title=attrs.get("title", "Unknown"),
+                    duration=self._iso_to_sec(attrs.get("duration")),
+                    isrc=attrs.get("isrc"), explicit=attrs.get("explicit"),
+                    version=attrs.get("version"),
+                    audio_quality=self._v2_audio_quality(attrs.get("mediaTags") or []),
+                ))
+            except Exception as e:
+                log.debug(f"v2 user collection track parse error id={item.get('id')}: {e}")
+        return tracks
