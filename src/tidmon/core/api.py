@@ -557,6 +557,12 @@ class TidalAPI:
         Tries HLS first, then MPEG_DASH. Returns a TrackStream whose manifest
         field holds a direct URL (not base64) with a v2-specific MIME type that
         parse_track_stream() knows how to handle.
+
+        Attribute notes (from tidal-sdk-android / OAS spec):
+          - uri            : signed M3U8/MPD URL
+          - drmData        : present when content is DRM-protected (can't be downloaded)
+          - trackPresentation: "FULL" | "PREVIEW"
+          - previewReason  : why a preview is served instead of the full track
         """
         _FMT: dict = {
             "MAX":             "FLAC",
@@ -577,6 +583,17 @@ class TidalAPI:
             return None
 
         attrs = body.get("data", {}).get("attributes", {})
+
+        # DRM check — log warning but still return the stream (player decides)
+        if attrs.get("drmData"):
+            log.warning(f"v2 track {track_id}: DRM-protected content — direct download not possible")
+
+        # Presentation check
+        presentation = attrs.get("trackPresentation", "FULL")
+        if presentation != "FULL":
+            reason = attrs.get("previewReason", "unknown")
+            log.warning(f"v2 track {track_id}: serving PREVIEW ({reason}) instead of full track")
+
         uri = attrs.get("uri")
         if not uri:
             return None
@@ -589,6 +606,49 @@ class TidalAPI:
             )
         except Exception as e:
             log.debug(f"v2 track stream parse error for id={track_id}: {e}")
+            return None
+
+    def _get_video_stream_v2(self, video_id: ID) -> Optional[VideoStream]:
+        """Fallback: fetch video stream manifest from openapi.tidal.com/v2.
+
+        VideoManifests returns link.href (not uri like trackManifests).
+        Confirmed from tidal-sdk-android VideoManifestsAttributes model.
+        """
+        body = self._v2_get(
+            f"videoManifests/{video_id}",
+            {"uriScheme": "HTTPS", "usage": "PLAYBACK"},
+        )
+        if not body:
+            return None
+
+        attrs = body.get("data", {}).get("attributes", {})
+
+        # DRM check
+        if attrs.get("drmData"):
+            log.warning(f"v2 video {video_id}: DRM-protected content — direct download not possible")
+
+        # Presentation check
+        presentation = attrs.get("videoPresentation", "FULL")
+        if presentation != "FULL":
+            reason = attrs.get("previewReason", "unknown")
+            log.warning(f"v2 video {video_id}: serving PREVIEW ({reason}) instead of full video")
+
+        # Video manifests use link.href (not uri like track manifests)
+        link = attrs.get("link") or {}
+        href = link.get("href")
+        if not href:
+            log.debug(f"v2 video stream: no link.href for video {video_id}")
+            return None
+
+        try:
+            return VideoStream(
+                videoId=int(video_id),
+                videoQuality="HIGH",
+                manifest=href,
+                manifestMimeType="application/vnd.tidal.v2.hls",
+            )
+        except Exception as e:
+            log.debug(f"v2 video stream parse error for id={video_id}: {e}")
             return None
 
     def _search_v2(self, query: str, search_type: str = "ALL", limit: int = 5) -> Optional[Search]:
@@ -931,7 +991,9 @@ class TidalAPI:
                 max_retries=1, params=params
             )
         except Exception:
-            return None
+            pass
+        log.debug(f"v1 get_video_stream failed for {video_id}, trying v2 fallback...")
+        return self._get_video_stream_v2(video_id)
 
     # ── Search ────────────────────────────────────────────────────────────────
 
