@@ -63,6 +63,18 @@ class Database:
                     FOREIGN KEY (artist_id) REFERENCES artists (artist_id)
                 )
             ''')
+
+            # Junction table: many-to-many artist <-> album ownership
+            # Fixes INSERT OR REPLACE overwriting artist_id on shared albums
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS artist_albums (
+                    artist_id INTEGER NOT NULL,
+                    album_id  INTEGER NOT NULL,
+                    PRIMARY KEY (artist_id, album_id),
+                    FOREIGN KEY (artist_id) REFERENCES artists (artist_id),
+                    FOREIGN KEY (album_id)  REFERENCES albums  (album_id)
+                )
+            ''')
             
             # Configuration table
             cursor.execute('''
@@ -102,12 +114,23 @@ class Database:
     def _migrate_schema(self, cursor):
         """Check for and apply necessary database schema migrations."""
         try:
-            # Check if 'downloaded' column exists in 'albums' table
+            # Migration 1: 'downloaded' column
             cursor.execute("PRAGMA table_info(albums)")
             columns = [col['name'] for col in cursor.fetchall()]
             if 'downloaded' not in columns:
                 logger.info("Migrating database: Adding 'downloaded' column to albums table.")
                 cursor.execute('ALTER TABLE albums ADD COLUMN downloaded INTEGER DEFAULT 0')
+
+            # Migration 2: populate artist_albums junction table from existing albums rows
+            cursor.execute("SELECT COUNT(*) as cnt FROM artist_albums")
+            if cursor.fetchone()['cnt'] == 0:
+                logger.info("Migrating database: Populating artist_albums junction table.")
+                cursor.execute('''
+                    INSERT OR IGNORE INTO artist_albums (artist_id, album_id)
+                    SELECT artist_id, album_id FROM albums
+                ''')
+                logger.info("Migration complete: artist_albums populated.")
+
         except sqlite3.Error as e:
             logger.error(f"Database migration error: {e}")
     
@@ -134,9 +157,14 @@ class Database:
         """Remove an artist and all their associated data from monitoring"""
         try:
             cursor = self.connection.cursor()
-            # Manually cascade deletes since FOREIGN KEY ON DELETE CASCADE is not set
             cursor.execute('DELETE FROM releases WHERE artist_id = ?', (artist_id,))
-            cursor.execute('DELETE FROM albums WHERE artist_id = ?', (artist_id,))
+            cursor.execute('DELETE FROM artist_albums WHERE artist_id = ?', (artist_id,))
+            # Only delete orphan albums (not shared with other artists)
+            cursor.execute('''
+                DELETE FROM albums
+                WHERE artist_id = ?
+                  AND album_id NOT IN (SELECT album_id FROM artist_albums)
+            ''', (artist_id,))
             cursor.execute('DELETE FROM artists WHERE artist_id = ?', (artist_id,))
             self.connection.commit()
             logger.info(f"Removed artist ID: {artist_id} and all associated data.")
@@ -290,15 +318,22 @@ class Database:
             logger.error(f"Failed to update check time: {e}")
     
     def add_album(self, album: Album, artist_id: int) -> bool:
-        """Add an album to the database"""
+        """Add an album to the database.
+
+        Uses INSERT OR IGNORE so shared albums (features, compilations) are
+        never overwritten by a different artist_id.  The artist_albums junction
+        table tracks every artist that claims the album, so get_artist_albums()
+        works correctly for all artists regardless of who inserted the row first.
+        """
         try:
             cursor = self.connection.cursor()
             added_date = datetime.now().isoformat()
             release_date_str = album.release_date.isoformat() if album.release_date else None
 
+            # 1. Insert album row only if it doesn't exist yet (no overwrite)
             cursor.execute('''
-                INSERT OR REPLACE INTO albums 
-                (album_id, artist_id, title, release_date, album_type, 
+                INSERT OR IGNORE INTO albums
+                (album_id, artist_id, title, release_date, album_type,
                  explicit, number_of_tracks, added_date)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
@@ -309,12 +344,18 @@ class Database:
                 album.type,
                 album.explicit,
                 album.number_of_tracks,
-                added_date
+                added_date,
             ))
-            
+
+            # 2. Always register the artist-album relationship
+            cursor.execute('''
+                INSERT OR IGNORE INTO artist_albums (artist_id, album_id)
+                VALUES (?, ?)
+            ''', (artist_id, album.id))
+
             self.connection.commit()
             return True
-        
+
         except sqlite3.Error as e:
             logger.error(f"Failed to add album: {e}")
             return False
@@ -331,13 +372,19 @@ class Database:
             return None
     
     def get_artist_albums(self, artist_id: int) -> List[Dict]:
-        """Get all albums for an artist"""
+        """Get all albums for an artist via the artist_albums junction table.
+
+        Falls back to the legacy artist_id column for rows that pre-date the
+        junction table migration (shouldn't happen after first run, but safe).
+        """
         try:
             cursor = self.connection.cursor()
             cursor.execute('''
-                SELECT * FROM albums 
-                WHERE artist_id = ? 
-                ORDER BY release_date DESC
+                SELECT al.*
+                FROM albums al
+                JOIN artist_albums aa ON al.album_id = aa.album_id
+                WHERE aa.artist_id = ?
+                ORDER BY al.release_date DESC
             ''', (artist_id,))
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
