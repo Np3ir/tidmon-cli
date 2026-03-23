@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.1.9] — 2026-03-22
+
+### Added
+
+- **`tidmon reset` command** (`cli.py`)
+  — Restores the previously available `reset` command that deletes all monitored
+  artists, albums and download history from the database.
+  - `tidmon reset` — resets the entire database (artists, albums, playlists) after
+    confirmation prompt.
+  - `tidmon reset --artists` — removes only monitored artists and their albums.
+
+---
+
 ## [1.1.8] — 2026-03-22
 
 ### Fixed

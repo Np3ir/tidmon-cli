@@ -477,6 +477,26 @@ def backup_delete(ctx, path, keep_last):
         b.delete(backup_path=path, keep_last=keep_last)
 
 
+# ── reset ─────────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option('--artists', 'scope', flag_value='artists', help='Reset only monitored artists and their albums.')
+@click.option('--db', 'scope', flag_value='db', default=True, help='Reset the entire database (default).')
+@click.confirmation_option(prompt='⚠️  This will delete all monitored artists and albums. Continue?')
+@click.pass_context
+def reset(ctx, scope):
+    """Reset the tidmon database (remove all artists, albums and download history)."""
+    from tidmon.core.db import Database
+    db = Database()
+    if scope == 'artists':
+        db.clear_artists()
+        click.echo('✅ All monitored artists and their albums have been removed.')
+    else:
+        db.clear_artists()
+        db.clear_playlists()
+        click.echo('✅ Database reset complete — all artists, albums and playlists removed.')
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def run():
