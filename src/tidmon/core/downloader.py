@@ -263,7 +263,7 @@ class AdvancedDownloader:
                 if is_valid:
                     task.status = DownloadStatus.SKIPPED
                     self.stats["skipped"] += 1
-                    logger.info(f"✓ Skipped (exists): {task.track_title}")
+                    logger.info(f"[OK] Skipped (exists): {task.track_title}")
                     if self.on_progress: self.on_progress(task)
                     return True, None
                 else:
@@ -331,7 +331,7 @@ class AdvancedDownloader:
                         self.stats["total_bytes"] += task.bytes_downloaded
                         
                         if task.attempts > 1:
-                            logger.info(f"✓ Downloaded (attempt {task.attempts}): {task.track_title}")
+                            logger.info(f"[OK] Downloaded (attempt {task.attempts}): {task.track_title}")
                         
                         if self.on_progress: self.on_progress(task)
                         return True, None
@@ -371,7 +371,7 @@ class AdvancedDownloader:
             task.status = DownloadStatus.FAILED
             self.stats["failed"] += 1
             err = task.error_message or "Max retries exceeded"
-            logger.error(f"✗ Failed after {task.max_attempts} attempts: {task.track_title} — {err}")
+            logger.error(f"[FAIL] Failed after {task.max_attempts} attempts: {task.track_title} - {err}")
             print(f"   ❌ {task.track_title}: {err}")
             if self.on_progress: self.on_progress(task)
             return False, err
@@ -523,7 +523,7 @@ class AdvancedDownloader:
                         pass
                 self.stats["failed"] += 1
                 err = str(e)
-                logger.error(f"Segment download failed: {track_title} — {err}")
+                logger.error(f"Segment download failed: {track_title} - {err}")
                 return False, err
 
     def reset_stats(self):
