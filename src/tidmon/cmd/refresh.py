@@ -54,6 +54,8 @@ class Refresh:
             download: bool = False,
             videos_only: bool = False,
             check_videos: bool = False,
+            video_since: str = None,
+            video_until: str = None,
     ):
         """Refresh monitored content and detect new releases."""
         try:
@@ -72,7 +74,7 @@ class Refresh:
                 self._refresh_all_playlists()
 
             if check_videos or (download and videos_only):
-                self._collect_new_videos(videos_only=True)
+                self._collect_new_videos(videos_only=True, since=video_since, until=video_until)
             elif download and self.new_releases:
                 self._collect_new_videos(videos_only=False)
 
@@ -257,17 +259,18 @@ class Refresh:
 
         console.print(f"{'=' * 60}\n")
 
-    def _collect_new_videos(self, videos_only: bool = False):
-        """Fetch and detect new videos. Called only when --download is active.
+    def _collect_new_videos(self, videos_only: bool = False, since: str = None, until: str = None):
+        """Fetch and detect new videos.
 
         videos_only=False: check only artists that have new album releases.
-        videos_only=True:  check all monitored artists (full video sync).
+        videos_only=True:  check all monitored artists, optionally filtered by
+                           added_date (since/until).
         """
         if not self.config.save_video_enabled():
             return
 
         if videos_only:
-            artists = self.db.get_all_artists()
+            artists = self.db.get_all_artists(since=since, until=until)
             targets = [(a['artist_id'], a['artist_name']) for a in artists]
         else:
             seen = {}
@@ -280,15 +283,22 @@ class Refresh:
         if not targets:
             return
 
-        console.print(f"\n  Checking videos for {len(targets)} artist(s)...")
+        console.print(f"\n{'=' * 60}")
+        console.print(f"  CHECKING VIDEOS FOR {len(targets)} ARTIST(S)")
+        console.print(f"{'=' * 60}\n")
+
         for artist_id, artist_name in targets:
+            console.print(f"  [dim]-[/] {artist_name}...", end='')
             api_videos = self.api.get_artist_videos(artist_id)
+            new_count = 0
             for video in (api_videos or []):
                 if not self.db.is_video_downloaded(video.id):
                     self.new_videos.append({'artist_name': artist_name, 'video': video})
-
-        if self.new_videos:
-            console.print(f"  [green]+[/] {len(self.new_videos)} new video(s) found")
+                    new_count += 1
+            if new_count:
+                console.print(f"  [green]+[/] {new_count} new video(s)")
+            else:
+                console.print(f"  [dim]ok[/] up to date")
 
     def _download_new_releases(self, videos_only: bool = False):
         """Auto-download all newly detected releases and/or videos."""
