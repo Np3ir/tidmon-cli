@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.2.0] — 2026-04-17
+
+### Added
+
+- **Video database tracking** (`core/db.py`, `cmd/download.py`, `cmd/refresh.py`, `cli.py`)
+  — Downloaded videos are now recorded in the local SQLite database. Already-downloaded
+  videos are automatically skipped on future runs without requiring a file-system check.
+
+  - New `videos` table: `video_id`, `title`, `artist_name`, `release_date`,
+    `downloaded`, `downloaded_date`. Created automatically; existing databases are
+    migrated on first run (Migration 4).
+  - `Database.is_video_downloaded(video_id)` — fast lookup before initiating a download.
+  - `Database.mark_video_as_downloaded(video_id, title, artist_name, release_date)` — upserts the row and sets `downloaded = 1` with a timestamp.
+  - `_download_video_async` now checks the DB before downloading and marks the video on
+    success.
+
+- **Video detection in `tidmon refresh`** (`cmd/refresh.py`)
+  — When `save_video: true`, each artist refresh now fetches the artist's videos from
+  TIDAL and compares them against the local database. New videos are listed in the
+  refresh summary and downloaded automatically when `--download` is used.
+
+- **`--videos-only` flag for `tidmon refresh`** (`cli.py`, `cmd/refresh.py`)
+  — With `--download --videos-only`, the refresh downloads only new videos and skips
+  album downloads. Useful for catching up on videos independently of music.
+
+- **`tidmon download video <VIDEO_ID>`** (`cli.py`)
+  — New CLI subcommand to download a single video by its TIDAL ID. Supports `--force`.
+
+---
+
 ## [1.1.9] — 2026-03-22
 
 ### Added

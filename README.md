@@ -6,18 +6,19 @@
 
 A powerful command-line tool for monitoring TIDAL artists, tracking new releases, and automating your music library management.
 
-`tidmon` helps you keep your local music collection perfectly in sync with your favorite artists' discographies on TIDAL. It maintains a local database of artists you want to follow, checks for new albums, and provides a robust downloader to save them to your machine.
+`tidmon` helps you keep your local music collection perfectly in sync with your favorite artists' discographies on TIDAL. It maintains a local database of artists you want to follow, checks for new albums and videos, and provides a robust downloader to save them to your machine.
 
 ## Features
 
 - **Artist & Playlist Monitoring**: Keep a list of your favorite artists and playlists to track for new releases.
-- **Automatic Refresh**: Check for new albums and tracks with a single command.
-- **High-Quality Downloads**: Download music in the highest quality available, including Hi-Res FLAC (MAX), with fallback to lower qualities.
-- **Sequential Downloader**: Each track is fully completed (audio → lyrics → metadata → cover) before moving to the next, just like tiddl.
-- **Flexible Downloads**: Download by artist, album, track, or URL. Supports resuming interrupted downloads and forcing re-downloads.
-- **Customizable File Organization**: Use powerful and flexible templates to define your folder structure and file naming conventions.
+- **Automatic Refresh**: Check for new albums and videos with a single command. Newly detected content is shown in a summary and downloaded automatically with `--download`.
+- **Video Support**: Download music videos alongside audio. Videos are tracked in the local database — already-downloaded videos are skipped automatically on future runs.
+- **High-Quality Downloads**: Download music in the highest quality available, including Hi-Res FLAC (MAX), with automatic fallback to lower qualities.
+- **Sequential Downloader**: Each track is fully completed (audio → lyrics → metadata → cover) before moving to the next.
+- **Flexible Downloads**: Download by artist, album, track, video, or URL. Supports resuming interrupted downloads and forcing re-downloads.
+- **Customizable File Organization**: Use powerful and flexible templates to define your folder structure and file naming conventions for both audio and video.
 - **Robust and Resilient**: Handles token expiration automatically for long-running sessions and includes rate-limiting to respect the TIDAL API.
-- **Local Database**: All monitored items and release history are stored locally, giving you full control over your data.
+- **Local Database**: All monitored items, release history, and downloaded videos are stored locally, giving you full control over your data.
 - **Backup & Restore**: Create and restore backups of your database and configuration at any time.
 
 ## Installation
@@ -58,12 +59,28 @@ This directory is never affected by uninstalling or reinstalling `tidmon`.
 
 3. **Check for New Releases & Download**:
     ```bash
+    # Download new albums and videos
     tidmon refresh --download
+
+    # Download only new videos
+    tidmon refresh --download --videos-only
     ```
 
-4. **Download a Specific Album or URL**:
+4. **Download a Specific Album, Track, or Video**:
     ```bash
     tidmon download url "https://tidal.com/album/12345"
+    tidmon download url "https://tidal.com/video/67890"
+    tidmon download video 67890
+    ```
+
+5. **Enable Video Downloads** (in `config.json`):
+    ```json
+    {
+      "save_video": true,
+      "download_location": {
+        "video": "/path/to/your/videos"
+      }
+    }
     ```
 
 ## Command Reference
@@ -74,6 +91,6 @@ For a full list of all available commands, options, and advanced usage examples,
 
 ## Configuration
 
-`tidmon` is highly customizable. To learn how to configure download paths, file naming templates, download quality, and more, check out the configuration guide:
+`tidmon` is highly customizable. To learn how to configure download paths, file naming templates, download quality, video options, and more, check out the configuration guide:
 
 **[--> Configuration Guide (CONFIG_GUIDE.md)](CONFIG_GUIDE.md)**
