@@ -76,7 +76,7 @@ class Refresh:
 
             self._show_summary()
 
-            if download and (self.new_releases or self.new_videos):
+            if download and (self.new_releases or videos_only):
                 self._download_new_releases(videos_only=videos_only)
 
             if self.config.email_notifications_enabled() and (self.new_releases or self.new_playlist_tracks):
