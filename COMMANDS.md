@@ -1,6 +1,6 @@
 # `tidmon` Command Guide
 
-Complete reference for all available commands in `tidmon`.
+Complete reference for all available commands in `tidmon`, including every option and combination.
 
 ---
 
@@ -21,70 +21,48 @@ tidmon [OPTIONS] COMMAND [ARGS]...
 
 ## `auth` — Authentication
 
-Manage the connection to your TIDAL account.
-
 | Command | Description |
 |---|---|
 | `tidmon auth` | Start the interactive browser-based authentication flow. |
 | `tidmon logout` | Delete stored authentication credentials. |
-| `tidmon whoami` | Show the current session (user, country, token expiration). |
-| `tidmon auth-refresh [OPTIONS]` | Manually refresh the TIDAL access token. |
-
-**`auth-refresh` options:**
-
-| Option | Description |
-|---|---|
-| `--force`, `-f` | Refresh even if the token is still valid. |
-| `--early-expire`, `-e SECONDS` | Treat the token as expired N seconds before its actual expiry. |
+| `tidmon whoami` | Show current session info (user, country, token expiration). |
+| `tidmon auth-refresh` | Manually refresh the TIDAL access token. |
+| `tidmon auth-refresh --force` | Refresh even if the token is still valid. |
+| `tidmon auth-refresh --early-expire SECONDS` | Treat token as expired N seconds before actual expiry. |
 
 ---
 
 ## `monitor` — Manage Artists and Playlists
 
-Add, remove, and inspect the artists and playlists you want to track.
-
-### Artist commands
+### Artists
 
 | Command | Description |
 |---|---|
-| `tidmon monitor add [IDENTIFIERS...] [-f FILE]` | Add one or more artists or playlists. Accepts names, IDs, TIDAL URLs, or a file. |
-| `tidmon monitor remove [IDENTIFIERS...]` | Remove artists from monitoring by name or ID. |
-| `tidmon monitor clear` | Remove **all** monitored artists (requires confirmation). |
-| `tidmon monitor export [-o FILE]` | Export the full list of monitored artists and playlists to a file. |
+| `tidmon monitor add "Artist Name"` | Add an artist by name. |
+| `tidmon monitor add 3528531` | Add an artist by TIDAL ID. |
+| `tidmon monitor add "https://tidal.com/browse/artist/..."` | Add an artist by URL. |
+| `tidmon monitor add "Artist 1" "Artist 2" "Artist 3"` | Add multiple artists at once. |
+| `tidmon monitor add --file artists.txt` | Import artists from a text file (one per line). |
+| `tidmon monitor add "https://tidal.com/browse/playlist/..."` | Add a playlist and import all its artists. |
+| `tidmon monitor remove "Artist Name"` | Remove an artist by name. |
+| `tidmon monitor remove 3528531` | Remove an artist by ID. |
+| `tidmon monitor clear` | Remove all monitored artists (requires confirmation). |
+| `tidmon monitor export` | Export monitored artists to `tidmon_export.txt`. |
+| `tidmon monitor export --output my_list.txt` | Export to a specific file. |
 
-**`monitor add` options:**
-
-| Option | Description |
-|---|---|
-| `--file`, `-f PATH` | Import from a text file (one artist/playlist per line). |
-
-**Examples:**
-```bash
-tidmon monitor add "Daft Punk"
-tidmon monitor add 3528531
-tidmon monitor add "https://tidal.com/browse/artist/3528531"
-tidmon monitor add --file my_artists.txt
-```
-
-### Playlist subcommands
+### Playlists
 
 | Command | Description |
 |---|---|
-| `tidmon monitor playlist add <URL>` | Add a TIDAL playlist to monitoring (imports all its artists). |
+| `tidmon monitor playlist add <URL>` | Add a TIDAL playlist to monitoring. |
 | `tidmon monitor playlist remove <URL>` | Remove a playlist from monitoring. |
-| `tidmon monitor playlist list` | List all currently monitored playlists. |
+| `tidmon monitor playlist list` | List all monitored playlists. |
 
 ---
 
 ## `refresh` — Check for New Releases and Videos
 
-Checks TIDAL for new albums and videos from your monitored artists and playlists.
-
-```
-tidmon refresh [OPTIONS]
-```
-
-### Album options
+### All options
 
 | Option | Description |
 |---|---|
@@ -92,253 +70,255 @@ tidmon refresh [OPTIONS]
 | `--id ID` | Refresh only a specific artist by ID. |
 | `--no-artists` | Skip album refresh entirely. |
 | `--no-playlists` | Skip playlist refresh. |
-| `--since YYYY-MM-DD` | Only refresh artists added *after* this date. |
-| `--until YYYY-MM-DD` | Only refresh artists added *before* this date. |
-| `--album-since YYYY-MM-DD` | Only process albums released *after* this date. |
-| `--album-until YYYY-MM-DD` | Only process albums released *before* this date. |
-
-### Download options
-
-| Option | Description |
-|---|---|
-| `-D`, `--download` | Auto-download new content after refresh. |
+| `--since YYYY-MM-DD` | Only refresh artists added after this date. |
+| `--until YYYY-MM-DD` | Only refresh artists added before this date. |
+| `--album-since YYYY-MM-DD` | Only process albums released after this date. |
+| `--album-until YYYY-MM-DD` | Only process albums released before this date. |
+| `--download`, `-D` | Auto-download new content after refresh. |
 | `--videos-only` | With `--download`: download only new videos, skip album downloads. |
+| `--check-videos` | Detect new videos for all artists and show in summary. No download, no DB write. |
+| `--register-videos` | Detect new videos and register them in the DB as known. No download. |
+| `--video-since YYYY-MM-DD` | With video flags: only check artists added after this date. |
+| `--video-until YYYY-MM-DD` | With video flags: only check artists added before this date. |
 
-### Video options
+### Combinations — Ver sin descargar
 
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| `--check-videos` | Detect new videos for all monitored artists and show in summary. Does **not** download or write to DB. |
-| `--register-videos` | Detect new videos and add them to the DB as known, **without downloading**. Useful to seed the DB so only future videos are treated as new. |
-| `--video-since YYYY-MM-DD` | With `--check-videos`, `--register-videos`, or `--videos-only`: only check artists added *after* this date. |
-| `--video-until YYYY-MM-DD` | With `--check-videos`, `--register-videos`, or `--videos-only`: only check artists added *before* this date. |
+| `tidmon refresh` | Detecta álbumes nuevos. Muestra summary. No descarga nada. |
+| `tidmon refresh --check-videos` | Detecta álbumes + videos nuevos. Muestra summary. No descarga nada. |
+| `tidmon refresh --check-videos --no-artists --no-playlists` | Solo detecta videos nuevos. Muestra summary. No descarga nada. |
+| `tidmon refresh --check-videos --artist "Bad Bunny"` | Detecta álbumes + videos de un artista específico. |
+| `tidmon refresh --check-videos --video-since 2026-01-01` | Detecta álbumes + videos de artistas añadidos desde esa fecha. |
+| `tidmon refresh --check-videos --no-artists --no-playlists --video-since 2026-01-01` | Solo detecta videos de artistas añadidos desde esa fecha. |
 
-### Behavior matrix
+### Combinations — Registrar en DB sin descargar
 
-| Command | Albums detected | Videos detected | Albums downloaded | Videos downloaded | DB updated |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `refresh` | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `refresh --download` | ✅ | ✅ (artists w/ new releases) | ✅ | ✅ | ✅ |
-| `refresh --download --videos-only` | ✅ | ✅ (all artists) | ❌ | ✅ | ✅ |
-| `refresh --check-videos` | ✅ | ✅ (all artists) | ❌ | ❌ | ❌ |
-| `refresh --register-videos` | ✅ | ✅ (all artists) | ❌ | ❌ | ✅ (as known) |
+| Comando | Qué hace |
+|---|---|
+| `tidmon refresh --register-videos` | Detecta álbumes + registra todos los videos en DB (como conocidos). No descarga. |
+| `tidmon refresh --register-videos --no-artists --no-playlists` | Solo registra videos en DB. Ideal para seed inicial. |
+| `tidmon refresh --register-videos --video-since 2026-01-01` | Registra videos de artistas añadidos desde esa fecha. |
+| `tidmon refresh --register-videos --no-artists --no-playlists --video-since 2025-01-01 --video-until 2025-12-31` | Registra videos de artistas añadidos durante 2025. |
 
-### Examples
+### Combinations — Descargar álbumes
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon refresh --download` | Detecta + descarga álbumes nuevos. También descarga videos de artistas con releases nuevas. |
+| `tidmon refresh --download --album-since 2026-01-01` | Descarga solo álbumes publicados desde esa fecha. |
+| `tidmon refresh --download --since 2026-01-01` | Descarga álbumes de artistas añadidos a la monitorización desde esa fecha. |
+| `tidmon refresh --download --artist "Bad Bunny"` | Descarga álbumes nuevos de un artista específico. |
+| `tidmon refresh --download --id 3528531` | Descarga álbumes nuevos de un artista por ID. |
+| `tidmon refresh --download --no-playlists` | Descarga álbumes nuevos, ignora playlists. |
+
+### Combinations — Descargar videos
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon refresh --download --videos-only` | Descarga videos nuevos de todos los artistas. No descarga álbumes. |
+| `tidmon refresh --download --videos-only --no-artists --no-playlists` | Solo descarga videos (sin escanear álbumes). Más rápido. |
+| `tidmon refresh --download --videos-only --no-artists --no-playlists --video-since 2026-01-01` | Solo descarga videos de artistas añadidos desde esa fecha. |
+| `tidmon refresh --download --videos-only --artist "Bad Bunny"` | Descarga videos nuevos de un artista específico. |
+| `tidmon refresh --download --videos-only --video-since 2025-01-01 --video-until 2025-12-31` | Descarga videos de artistas añadidos durante 2025. |
+
+### Combinations — Descargar todo (álbumes + videos)
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon refresh --download` | Descarga álbumes nuevos + videos de artistas con releases nuevas. |
+| `tidmon refresh --download --check-videos` | Descarga álbumes nuevos + videos de **todos** los artistas. |
+| `tidmon refresh --download --check-videos --album-since 2026-01-01` | Lo mismo, filtrando álbumes por fecha de publicación. |
+| `tidmon refresh --download --check-videos --video-since 2026-01-01` | Descarga álbumes de todos + videos de artistas añadidos desde esa fecha. |
+
+### Flujo recomendado — primer uso con muchos artistas
 
 ```bash
-# ── VER SIN DESCARGAR ────────────────────────────────────────
-
-# Ver qué álbumes nuevos hay (no descarga nada)
-tidmon refresh
-
-# Ver qué álbumes y videos nuevos hay (no descarga nada)
-tidmon refresh --check-videos
-
-# ── DESCARGAR ────────────────────────────────────────────────
-
-# Standard refresh — detect new albums only
-tidmon refresh
-
-# Detect and download new albums + videos from artists with new releases
-tidmon refresh --download
-
-# Detect and download new videos only (skip albums)
-tidmon refresh --download --videos-only --no-artists --no-playlists
-
-# See what new videos exist without downloading or writing to DB
-tidmon refresh --check-videos --no-artists --no-playlists
-
-# Seed the DB with all existing videos (run once, then future runs only show truly new ones)
+# 1. Sembrar la DB con todos los videos existentes (no descarga nada, puede tardar)
 tidmon refresh --register-videos --no-artists --no-playlists
 
-# Limit video operations to recently added artists
-tidmon refresh --download --videos-only --no-artists --no-playlists --video-since 2026-01-01
+# 2. A partir de ahora, detectar y descargar solo los videos nuevos
+tidmon refresh --download --videos-only --no-artists --no-playlists
 
-# Check videos for a single artist
-tidmon refresh --check-videos --no-artists --no-playlists --artist "Bad Bunny"
-
-# Full refresh: new albums since a date + download everything
-tidmon refresh --download --album-since 2026-01-01
+# 3. Para un refresh completo (álbumes + videos nuevos)
+tidmon refresh --download
 ```
 
 ---
 
 ## `download` — Download Music and Videos
 
-Downloads music and videos from TIDAL. Audio tracks are fully completed (audio → lyrics → metadata → cover) before moving to the next.
+### `download url` — Por URL
 
-### Subcommands
-
-| Command | Description |
+| Comando | Qué hace |
 |---|---|
-| `tidmon download url <URL>` | Download from a TIDAL URL (artist, album, track, video, or playlist). |
-| `tidmon download artist <ID\|NAME>` | Download the complete discography of an artist (albums + videos). |
-| `tidmon download album <ALBUM_ID>` | Download a full album by its ID. |
-| `tidmon download track <TRACK_ID>` | Download a single track by its ID. |
-| `tidmon download video <VIDEO_ID>` | Download a single video by its ID. |
-| `tidmon download monitored` | Download all pending albums from monitored artists. |
-| `tidmon download all` | Download **all** albums from the database regardless of status. |
+| `tidmon download url "https://tidal.com/browse/album/123456"` | Descarga un álbum completo. |
+| `tidmon download url "https://tidal.com/browse/track/123456"` | Descarga un track. |
+| `tidmon download url "https://tidal.com/browse/video/123456"` | Descarga un video. |
+| `tidmon download url "https://tidal.com/browse/artist/123456"` | Descarga discografía completa + videos del artista. |
+| `tidmon download url <URL> --force` | Re-descarga aunque ya exista en disco o en DB. |
 
-### Common options
+### `download artist` — Por artista
 
-| Option | Applies to | Description |
-|---|---|---|
-| `--force` | all | Re-download even if the file already exists on disk or is marked as downloaded in the DB. |
-| `--dry-run` | `monitored`, `all` | Show what would be downloaded without actually downloading. |
-| `--resume` | `all` | Skip albums already marked as downloaded in the DB. |
-| `--since YYYY-MM-DD` | `monitored`, `all` | Only process albums released on or after this date. |
-| `--until YYYY-MM-DD` | `monitored`, `all` | Only process albums released on or before this date. |
+| Comando | Qué hace |
+|---|---|
+| `tidmon download artist "Rosalía"` | Descarga discografía completa + videos por nombre. |
+| `tidmon download artist 3528531` | Descarga discografía completa + videos por ID. |
+| `tidmon download artist "Rosalía" --force` | Re-descarga todo aunque ya exista. |
 
-**Notes on video downloads:**
-- Videos require `save_video: true` in `config.json`.
-- `tidmon download artist` downloads both albums and videos for the artist.
-- Downloaded videos are tracked in the local database — already-downloaded videos are automatically skipped on future runs unless `--force` is used.
+### `download album` — Por álbum
 
-**Examples:**
-```bash
-tidmon download url "https://tidal.com/browse/album/123456"
-tidmon download url "https://tidal.com/browse/video/987654"
-tidmon download artist "Rosalía"
-tidmon download video 987654
-tidmon download album 123456
-tidmon download monitored --since 2026-01-01
-tidmon download all --resume
-```
+| Comando | Qué hace |
+|---|---|
+| `tidmon download album 123456` | Descarga un álbum por ID. |
+| `tidmon download album 123456 --force` | Re-descarga aunque ya exista. |
+
+### `download track` — Por track
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon download track 123456` | Descarga un track por ID. |
+| `tidmon download track 123456 --force` | Re-descarga aunque ya exista. |
+
+### `download video` — Por video
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon download video 123456` | Descarga un video por ID. |
+| `tidmon download video 123456 --force` | Re-descarga aunque ya esté en DB. |
+
+### `download monitored` — Álbumes pendientes
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon download monitored` | Descarga todos los álbumes pendientes (no marcados como descargados). |
+| `tidmon download monitored --since 2026-01-01` | Solo álbumes publicados desde esa fecha. |
+| `tidmon download monitored --until 2026-12-31` | Solo álbumes publicados antes de esa fecha. |
+| `tidmon download monitored --since 2026-01-01 --until 2026-03-31` | Solo álbumes en ese rango de fechas. |
+| `tidmon download monitored --dry-run` | Muestra qué se descargaría sin descargar nada. |
+| `tidmon download monitored --force` | Re-descarga aunque ya estén marcados como descargados. |
+
+### `download all` — Todos los álbumes
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon download all` | Descarga todos los álbumes de la DB. |
+| `tidmon download all --resume` | Salta los álbumes ya descargados. |
+| `tidmon download all --force` | Re-descarga todo ignorando estado en DB y disco. |
+| `tidmon download all --dry-run` | Muestra qué se descargaría sin descargar nada. |
+| `tidmon download all --since 2026-01-01` | Solo álbumes publicados desde esa fecha. |
+| `tidmon download all --until 2026-12-31` | Solo álbumes publicados antes de esa fecha. |
+| `tidmon download all --since 2026-01-01 --resume` | Desde esa fecha, saltando los ya descargados. |
 
 ---
 
 ## `show` — Inspect the Database
 
-Inspect your local database of monitored artists, albums, and releases.
+### `show artists`
 
-| Command | Description |
+| Comando | Qué hace |
 |---|---|
-| `tidmon show artists [OPTIONS]` | List monitored artists and/or playlists. |
-| `tidmon show releases [OPTIONS]` | Show recent or upcoming releases. |
-| `tidmon show albums [OPTIONS]` | Show albums in the database with filters. |
-| `tidmon show report [OPTIONS]` | Per-artist summary: album count and total track count. |
-| `tidmon show discography [OPTIONS]` | Export full A–Z artist discographies to files. |
+| `tidmon show artists` | Lista todos los artistas monitoreados. |
+| `tidmon show artists --playlists` | Lista las playlists monitoreadas. |
+| `tidmon show artists --all` | Lista artistas y playlists. |
+| `tidmon show artists --csv` | Exporta artistas a CSV (archivo por defecto). |
+| `tidmon show artists --csv --output lista.csv` | Exporta artistas a un CSV específico. |
 
-### `show artists` options
+### `show releases`
 
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| `--artists` | Show monitored artists (default). |
-| `--playlists` | Show monitored playlists instead. |
-| `--all` | Show both artists and playlists. |
-| `--csv` | Export the list as a CSV file. |
-| `--output`, `-o FILE` | Output file path for the CSV export. |
+| `tidmon show releases` | Muestra releases de los últimos 30 días. |
+| `tidmon show releases --days 7` | Muestra releases de los últimos 7 días. |
+| `tidmon show releases --future` | Muestra próximas releases. |
+| `tidmon show releases --export releases.csv` | Exporta a CSV. |
+| `tidmon show releases --export releases.txt` | Exporta como lista de comandos tiddl. |
 
-### `show releases` options
+### `show albums`
 
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| `--days`, `-d N` | Number of days to look back (default: 30). |
-| `--future`, `-f` | Show upcoming releases instead of recent ones. |
-| `--export FILE` | Export to file: `.csv` for spreadsheet, any other extension for tiddl-compatible URL list. |
+| `tidmon show albums` | Lista todos los álbumes en la DB. |
+| `tidmon show albums --artist "Rosalía"` | Solo álbumes de ese artista. |
+| `tidmon show albums --artist 3528531` | Solo álbumes de ese artista por ID. |
+| `tidmon show albums --pending` | Solo álbumes aún no descargados. |
+| `tidmon show albums --pending --artist "Rosalía"` | Álbumes pendientes de un artista. |
+| `tidmon show albums --since 2026-01-01` | Solo álbumes publicados desde esa fecha. |
+| `tidmon show albums --until 2026-12-31` | Solo álbumes publicados antes de esa fecha. |
+| `tidmon show albums --since 2026-01-01 --until 2026-03-31` | Álbumes en ese rango. |
+| `tidmon show albums --export albums.csv` | Exporta a CSV. |
+| `tidmon show albums --export albums.txt` | Exporta como lista de comandos tiddl. |
+| `tidmon show albums --pending --export pending.txt` | Exporta pendientes como comandos tiddl. |
 
-### `show albums` options
+### `show report`
 
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| `--artist`, `-a NAME\|ID` | Filter by a specific artist. |
-| `--pending` | Show only albums not yet downloaded. |
-| `--since YYYY-MM-DD` | Only albums released on or after this date. |
-| `--until YYYY-MM-DD` | Only albums released on or before this date. |
-| `--export FILE` | Export to file: `.csv` for spreadsheet, any other extension for tiddl-compatible URL list. |
+| `tidmon show report` | Tabla por artista: álbumes y canciones totales. |
+| `tidmon show report --export report.csv` | Exporta a CSV (compatible con Excel). |
+| `tidmon show report --export report.html` | Exporta a HTML con tabla oscura. |
 
-### `show report` options
+### `show discography`
 
-Displays a Rich table in the console with: Artist ID, Artist Name, Albums, Songs, and a totals footer row.
-
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| `--export FILE` | Export to `.csv` (UTF-8 BOM, Excel-compatible) or `.html` (dark-themed table). |
-
-> Artists with `Albums = 0` were added to monitoring but have not been refreshed yet.
-
-### `show discography` options
-
-Generates one file per letter (A–Z and `#`) for each requested format, containing all artists and their albums sorted by release date.
-
-| Option | Description |
-|---|---|
-| `--format`, `-f [csv\|txt\|html]` | Output format(s). Can be specified multiple times (default: `csv txt html`). |
-| `--output`, `-o DIR` | Directory where files will be saved (default: current directory). |
-
-**Example:**
-```bash
-tidmon show discography --format csv --format html -o ~/Music/catalog
-```
+| `tidmon show discography` | Genera archivos A-Z en CSV, TXT y HTML en la carpeta actual. |
+| `tidmon show discography --format csv` | Solo en formato CSV. |
+| `tidmon show discography --format csv --format html` | En CSV y HTML. |
+| `tidmon show discography --output ~/Music/catalog` | Guarda en esa carpeta. |
+| `tidmon show discography --format txt --output ~/Music/catalog` | TXT en esa carpeta. |
 
 ---
 
 ## `search` — Search TIDAL
 
-```
-tidmon search <QUERY> [OPTIONS]
-```
-
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| `--type`, `-t [artists\|albums\|tracks]` | Type of content to search (default: `artists`). |
-| `--limit`, `-l N` | Maximum number of results to return (default: 10). |
-
-**Examples:**
-```bash
-tidmon search "Rosalía"
-tidmon search "Motomami" --type albums
-tidmon search "Con Altura" --type tracks --limit 5
-```
+| `tidmon search "Rosalía"` | Busca artistas con ese nombre (top 10). |
+| `tidmon search "Rosalía" --limit 5` | Busca artistas, muestra solo 5 resultados. |
+| `tidmon search "Motomami" --type albums` | Busca álbumes. |
+| `tidmon search "Con Altura" --type tracks` | Busca tracks. |
+| `tidmon search "Con Altura" --type tracks --limit 3` | Busca tracks, muestra 3 resultados. |
 
 ---
 
 ## `config` — Configuration
 
-View and modify `tidmon` configuration values.
-
-| Command | Description |
+| Comando | Qué hace |
 |---|---|
-| `tidmon config show` | Show the full current configuration. |
-| `tidmon config get <KEY>` | Get the value of a specific configuration key. |
-| `tidmon config set <KEY> <VALUE>` | Set a new value for a configuration key. |
-| `tidmon config path` | Show the path to the `config.json` file. |
-
-**Examples:**
-```bash
-tidmon config set save_lrc true
-tidmon config set save_video true
-tidmon config set monitor_interval_hours 12
-tidmon config set quality_order '["MAX", "HI_RES_LOSSLESS", "LOSSLESS"]'
-```
+| `tidmon config show` | Muestra toda la configuración actual. |
+| `tidmon config path` | Muestra la ruta del archivo `config.json`. |
+| `tidmon config get save_video` | Obtiene el valor de una clave. |
+| `tidmon config set save_video true` | Activa la descarga de videos. |
+| `tidmon config set save_lrc true` | Activa la descarga de letras sincronizadas. |
+| `tidmon config set save_cover true` | Guarda la carátula como `cover.jpg`. |
+| `tidmon config set embed_cover true` | Incrusta la carátula en los archivos de audio. |
+| `tidmon config set quality_order '["MAX","HI_RES_LOSSLESS","LOSSLESS"]'` | Cambia el orden de calidades. |
+| `tidmon config set artist_separator " / "` | Cambia el separador de artistas. |
+| `tidmon config set monitor_interval_hours 12` | Cambia el intervalo de monitorización. |
+| `tidmon config set concurrent_downloads 4` | Cambia las descargas simultáneas. |
 
 ---
 
 ## `backup` — Backup and Restore
 
-Create and restore backups of your database and configuration.
-
-| Command | Description |
+| Comando | Qué hace |
 |---|---|
-| `tidmon backup create [-o FILE]` | Create a new backup archive. Defaults to the `tidmon` data directory. |
-| `tidmon backup restore <FILE>` | Restore data from a backup file. |
-| `tidmon backup list` | List all available backups. |
-| `tidmon backup delete [FILE\|--keep N]` | Delete a specific backup, or keep only the N most recent. |
+| `tidmon backup create` | Crea un backup en la carpeta de datos de tidmon. |
+| `tidmon backup create --output /ruta/backup.zip` | Crea un backup en una ruta específica. |
+| `tidmon backup restore backup.zip` | Restaura desde un backup. |
+| `tidmon backup list` | Lista todos los backups disponibles. |
+| `tidmon backup delete backup.zip` | Elimina un backup específico. |
+| `tidmon backup delete --keep 3` | Mantiene solo los 3 backups más recientes. |
 
 ---
 
 ## `reset` — Reset the Database
 
-Remove all monitored artists, albums, and download history from the database.
-
-```
-tidmon reset [OPTIONS]
-```
-
-| Option | Description |
+| Comando | Qué hace |
 |---|---|
-| *(none)* | Reset the entire database (artists, albums, playlists). Requires confirmation. |
-| `--artists` | Remove only monitored artists and their albums. |
-| `--db` | Explicitly reset the full database (same as no option). |
+| `tidmon reset` | Elimina toda la DB (artistas, álbumes, playlists). Pide confirmación. |
+| `tidmon reset --artists` | Elimina solo artistas y sus álbumes. |
+| `tidmon reset --db` | Igual que sin opciones — resetea la DB completa. |
 
-> ⚠️ This action is irreversible. Use `tidmon backup create` before resetting if you want to preserve your data.
+> ⚠️ Irreversible. Usa `tidmon backup create` antes de resetear.
