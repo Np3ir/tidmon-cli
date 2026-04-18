@@ -294,6 +294,15 @@ def download_video(ctx, video_id, force):
     Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_video(video_id, force=force)
 
 
+@download.command('playlist')
+@click.pass_context
+@click.argument('url')
+@click.option('--force', is_flag=True, default=False, help='Force re-download even if already on disk.')
+def download_playlist(ctx, url, force):
+    """Download all tracks from a TIDAL playlist URL."""
+    Download(verbose=ctx.obj.get('verbose', False), config=ctx.obj.get('config')).download_playlist(url, force=force)
+
+
 @download.command('monitored')
 @click.pass_context
 @click.option('--force', is_flag=True, default=False, help='Force re-download even if file exists.')

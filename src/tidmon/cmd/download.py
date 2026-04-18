@@ -367,6 +367,14 @@ class Download:
     def download_video(self, video_id: int, force: bool = False):
         self._run_async(self._download_video_async(video_id, force=force))
 
+    def download_playlist(self, url: str, force: bool = False):
+        from tidmon.core.utils.url import parse_url, TidalType
+        parsed = parse_url(url)
+        if not parsed or parsed.tidal_type != TidalType.PLAYLIST:
+            self.ui.print("[red]Invalid or non-playlist TIDAL URL.")
+            return
+        self._run_async(self._download_playlist_async(parsed.tidal_id, force=force))
+
     def download_url(self, url: str, force: bool = False):
         self._run_async(self._download_url_async(url, force=force))
 
@@ -667,7 +675,7 @@ class Download:
             stats = await self._download_video_async(video_id=int(id_val), force=force)
             self._print_summary("Video Download", stats)
         elif type_ == TidalType.PLAYLIST:
-            await self._import_artists_from_playlist_async(id_val)
+            await self._download_playlist_async(id_val, force=force)
 
     async def _process_album_batch(
         self,
@@ -773,12 +781,130 @@ class Download:
         self.ui.print(f"\n[green]✅ Imported {added_count} new artists[/] (Total unique: {len(seen_artists)})")
         self.ui.print("💡 Run [bold]tidmon download monitored[/] to download their discographies.")
 
+    async def _download_playlist_async(self, playlist_uuid: str, force: bool = False):
+        """Download all tracks from a TIDAL playlist."""
+        self.ui.print(f"\n[bold]Fetching playlist {playlist_uuid}...")
+        playlist = self.api.get_playlist(playlist_uuid)
+        if not playlist:
+            self.ui.print("[red]Playlist not found.")
+            return
+
+        items = self.api.get_playlist_items(playlist_uuid)
+        if not items:
+            self.ui.print("[yellow]Playlist is empty.")
+            return
+
+        title = playlist.title or playlist_uuid
+        self.ui.console.rule(f"[bold magenta]Playlist: {title}")
+        self.ui.print(f"[dim]{len(items)} tracks")
+        self.ui.print("\n   [dim]Preparing downloads...[/]")
+
+        # Build (track, album, task) tuples — resolve stream URLs upfront
+        _prep_sem = asyncio.Semaphore(4)
+
+        async def _prepare_one(idx: int, track):
+            async with _prep_sem:
+                album = getattr(track, 'album', None)
+                if album is None:
+                    logger.warning(f"Track {track.id} has no album metadata, skipping")
+                    return None
+
+                file_path_no_ext = self._build_output_path(
+                    item=track,
+                    album=album,
+                    media_type='default',
+                    template_key='playlist',
+                    playlist=playlist,
+                    playlist_index=idx,
+                )
+
+                if not force:
+                    for ext_check in ['.flac', '.m4a', '.mp4']:
+                        if file_path_no_ext.with_name(file_path_no_ext.name + ext_check).exists():
+                            logger.debug(f"Skipping existing: {file_path_no_ext}")
+                            return ('skip', track, album, file_path_no_ext)
+
+                stream_data = None
+                for quality in self.config.quality_order():
+                    stream_data = self.api.get_track_stream(track.id, quality=quality)
+                    if stream_data:
+                        break
+                if not stream_data:
+                    logger.warning(f"No stream for track {track.id} — {track.title}")
+                    return None
+
+                urls, ext = parse_track_stream(stream_data)
+                if not urls:
+                    logger.warning(f"Could not parse stream for {track.title}")
+                    return None
+
+                output_path = file_path_no_ext.with_name(file_path_no_ext.name + ext)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                track_num = getattr(track, 'track_number', None)
+                display = f"{idx:02d}. {track.title}" if not track_num else f"{track_num:02d}. {track.title}"
+                dt = DownloadTask(url=urls[0], output_path=output_path, track_id=track.id, track_title=display)
+                return ('download', track, album, dt)
+
+        prep_results = await asyncio.gather(
+            *[_prepare_one(i, t) for i, t in enumerate(items, 1)],
+            return_exceptions=False,
+        )
+
+        skip_entries    = [r for r in prep_results if r and r[0] == 'skip']
+        active_entries  = [r for r in prep_results if r and r[0] == 'download']
+
+        for entry in skip_entries:
+            self.ui.print_result("[yellow]Exists", entry[2].title if hasattr(entry[2], 'title') else 'Unknown', None)
+
+        if not active_entries:
+            self.ui.print("[green]All tracks already downloaded.")
+            self._print_summary(f"Playlist: {title}", Counter({"skipped": len(skip_entries)}))
+            return
+
+        active_tasks = [e[3] for e in active_entries]
+        track_map    = {e[3].track_id: (e[1], e[2]) for e in active_entries}
+
+        self.downloader.reset_stats()
+        self.current_tasks.clear()
+        session = await self.downloader._get_session()
+        _dl_sem = asyncio.Semaphore(self.config.get('concurrent_downloads', 2))
+
+        async def _download_one(task: DownloadTask):
+            async with _dl_sem:
+                await self.downloader.download_file(task, session)
+                if task.output_path and task.output_path.exists():
+                    track_obj, album_obj = track_map.get(task.track_id, (None, None))
+                    if track_obj and album_obj:
+                        try:
+                            add_track_metadata(
+                                path=task.output_path,
+                                track=track_obj,
+                                album=album_obj,
+                                artist_separator=self.config.get("artist_separator", DEFAULT_ARTIST_SEPARATOR),
+                            )
+                        except Exception as e:
+                            logger.warning(f"Metadata error for {task.track_title}: {e}")
+
+        self.ui.start(total=len(active_tasks))
+        for _ in skip_entries:
+            self.ui.track_finish_silent()
+        try:
+            await asyncio.gather(*[_download_one(t) for t in active_tasks])
+        finally:
+            self.ui.stop()
+
+        stats = Counter(self.downloader.get_stats())
+        stats['skipped'] = stats.get('skipped', 0) + len(skip_entries)
+        self._print_summary(f"Playlist: {title}", stats)
+
     def _build_output_path(
         self,
         item,
         album=None,
         media_type: str = 'default',
         template_key: str = 'default',
+        playlist=None,
+        playlist_index: int = 0,
     ) -> Path:
         """
         Build the destination path (without extension) for any downloadable item.
@@ -787,10 +913,12 @@ class Download:
         duplicated in _process_track and _download_video_async.
 
         Args:
-            item:         Track, Video, or similar model.
-            album:        Album model (required for tracks, None for videos).
-            media_type:   Key for config.download_path() ('default' or 'video').
-            template_key: Key inside config['templates'] ('default' or 'video').
+            item:           Track, Video, or similar model.
+            album:          Album model (required for tracks, None for videos).
+            media_type:     Key for config.download_path() ('default' or 'video').
+            template_key:   Key inside config['templates'] ('default', 'video', 'playlist').
+            playlist:       Playlist model (optional, for playlist downloads).
+            playlist_index: 1-based track index within the playlist.
 
         Returns:
             Absolute Path without file extension.
@@ -804,6 +932,9 @@ class Download:
         kwargs = dict(item=item, with_asterisk_ext=False, artist_separator=self.config.get("artist_separator", DEFAULT_ARTIST_SEPARATOR))
         if album is not None:
             kwargs['album'] = album
+        if playlist is not None:
+            kwargs['playlist'] = playlist
+            kwargs['playlist_index'] = playlist_index
         rel = Path(format_template(template, **kwargs))
         return rel if rel.is_absolute() else download_root / rel
 

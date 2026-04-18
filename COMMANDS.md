@@ -156,6 +156,7 @@ tidmon refresh --download
 | `tidmon download url "https://tidal.com/browse/track/123456"` | Descarga un track. |
 | `tidmon download url "https://tidal.com/browse/video/123456"` | Descarga un video. |
 | `tidmon download url "https://tidal.com/browse/artist/123456"` | Descarga discografía completa + videos del artista. |
+| `tidmon download url "https://tidal.com/browse/playlist/..."` | Descarga todos los tracks de una playlist. |
 | `tidmon download url <URL> --force` | Re-descarga aunque ya exista en disco o en DB. |
 
 ### `download artist` — Por artista
@@ -186,6 +187,16 @@ tidmon refresh --download
 |---|---|
 | `tidmon download video 123456` | Descarga un video por ID. |
 | `tidmon download video 123456 --force` | Re-descarga aunque ya esté en DB. |
+
+### `download playlist` — Tracks de una playlist
+
+| Comando | Qué hace |
+|---|---|
+| `tidmon download playlist "https://tidal.com/browse/playlist/..."` | Descarga todos los tracks de la playlist. |
+| `tidmon download playlist <URL> --force` | Re-descarga aunque ya existan en disco. |
+
+> Los tracks se guardan usando el template `playlist` (por defecto: `{playlist.title}/{item.artists_with_features} - {item.title_version}`).
+> Configurable con `tidmon config set templates.playlist "..."`.
 
 ### `download monitored` — Álbumes pendientes
 
