@@ -126,6 +126,16 @@ tidmon refresh [OPTIONS]
 ### Examples
 
 ```bash
+# ── VER SIN DESCARGAR ────────────────────────────────────────
+
+# Ver qué álbumes nuevos hay (no descarga nada)
+tidmon refresh
+
+# Ver qué álbumes y videos nuevos hay (no descarga nada)
+tidmon refresh --check-videos
+
+# ── DESCARGAR ────────────────────────────────────────────────
+
 # Standard refresh — detect new albums only
 tidmon refresh
 
