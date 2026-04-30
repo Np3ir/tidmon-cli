@@ -94,26 +94,36 @@ class TidalClientImproved:
     def token(self, new_token: str):
         self.session.headers["Authorization"] = f"Bearer {new_token}"
 
+    def _public_headers(self) -> dict:
+        """Headers for public endpoints — x-tidal-token instead of Bearer."""
+        h = {k: v for k, v in self.session.headers.items()
+             if k.lower() != "authorization"}
+        h["x-tidal-token"] = self._client_id
+        return h
+
+    def _needs_auth(self, endpoint: str) -> bool:
+        """Returns True only for endpoints that require a Bearer token."""
+        return any(p in endpoint for p in _AUTH_REQUIRED)
+
     def fetch(
         self,
         model: Type[T],
         endpoint: str,
         params: dict[str, Any] = {},
         api_version: Literal["v1", "v2"] = "v1",
-        _refreshed: bool = False  # Internal flag to prevent retry loops
+        _refreshed: bool = False
     ) -> T:
         base_url = API_V1_URL if api_version == "v1" else API_V2_URL
         url = f"{base_url}/{endpoint}"
-        
+
         try:
-            # Bypass cache for stream/token-sensitive endpoints
             _no_cache = any(p in url for p in _NO_CACHE_PATTERNS)
 
-            # Adaptive delay: grows on 429, shrinks on success
+            # Adaptive delay
             if self._rate_limit_delay > 0:
                 time.sleep(self._rate_limit_delay)
 
-            # Rate limit: thread-safe fixed interval + jitter
+            # Rate limit
             with self._rate_lock:
                 elapsed = time.monotonic() - self._last_request_time
                 wait = self._request_interval - elapsed + random.uniform(0, 0.3)
@@ -121,49 +131,43 @@ class TidalClientImproved:
                     time.sleep(wait)
                 self._last_request_time = time.monotonic()
 
+            # Public endpoints use x-tidal-token directly — no Bearer needed
+            if not self._needs_auth(endpoint):
+                import requests as _req
+                response = _req.get(url, params=params,
+                                    headers=self._public_headers(), timeout=15)
+                if response.status_code == 200:
+                    self._rate_limit_delay = max(0.0, self._rate_limit_delay - 0.1)
+                    return model(**response.json())
+                # If public call fails, fall through to Bearer attempt below
+                log.debug(f"x-tidal-token failed ({response.status_code}) for {endpoint} — trying Bearer")
+
+            # Auth-required endpoints (or public fallback) use Bearer
             response = self.session.get(
                 url, params=params,
                 expire_after=0 if _no_cache else None,
             )
 
-            # Cache hits don't consume API quota — release the slot
             if getattr(response, 'from_cache', False):
                 with self._rate_lock:
                     self._last_request_time = time.monotonic() - self._request_interval
-            
-            # Reactive token refresh on 401
+
+            # Token refresh on 401
             if response.status_code == 401 and not _refreshed:
-                # Guard against content-specific 401s (geo-block, etc.)
                 try:
                     sub_status = response.json().get("subStatus")
                     if sub_status == 4005:
-                        log.debug("Asset not ready (401/4005) - skipping token refresh")
-                        response.raise_for_status() # Re-raise the original error
+                        log.debug("Asset not ready (401/4005)")
+                        response.raise_for_status()
                 except (JSONDecodeError, AttributeError):
-                    pass # Not a JSON response or no subStatus, proceed with refresh
+                    pass
 
-                log.warning("Token may have expired (401). Attempting to refresh...")
+                log.warning("Token expired (401). Attempting refresh...")
                 if self.on_token_expiry:
                     new_token = self.on_token_expiry(force=True)
                     if new_token:
-                        log.info("Token refreshed successfully. Retrying request...")
                         self.token = new_token
                         return self.fetch(model, endpoint, params, api_version, _refreshed=True)
-
-                # x-tidal-token fallback: retry public endpoints without Bearer
-                if not any(p in endpoint for p in _AUTH_REQUIRED):
-                    log.debug(f"401 on public endpoint {endpoint} — retrying with x-tidal-token")
-                    try:
-                        import requests as _req
-                        fb_headers = {k: v for k, v in self.session.headers.items()
-                                      if k.lower() != "authorization"}
-                        fb_headers["x-tidal-token"] = self._client_id
-                        fb_res = _req.get(url, params=params, headers=fb_headers, timeout=15)
-                        if fb_res.status_code == 200:
-                            self._rate_limit_delay = max(0.0, self._rate_limit_delay - 0.1)
-                            return model(**fb_res.json())
-                    except Exception as fb_e:
-                        log.debug(f"x-tidal-token fallback failed: {fb_e}")
 
                 log.error("Token refresh failed. Aborting.")
 
