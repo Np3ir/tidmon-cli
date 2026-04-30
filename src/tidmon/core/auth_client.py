@@ -194,6 +194,11 @@ _DEFAULT_B64 = (
 )
 
 
+def get_default_client_id() -> str:
+    """Returns the default client_id for x-tidal-token fallback."""
+    return TidalCredentials.from_base64(_DEFAULT_B64).client_id
+
+
 def build_auth_client() -> "AuthClient":
     """
     Factory única para construir el AuthClient de tidmon.

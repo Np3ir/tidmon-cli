@@ -24,6 +24,9 @@ _NO_CACHE_PATTERNS = [
     "playbackinfopostpaywall",
 ]
 
+# Endpoints that require auth — all others can fall back to x-tidal-token
+_AUTH_REQUIRED = ("playbackinfo", "playback", "logout", "token", "events")
+
 from tidmon.core.exceptions import ApiError
 from tidmon.core.utils.startup import get_appdata_dir
 
@@ -48,6 +51,11 @@ class TidalClientImproved:
         requests_per_minute: int = 50,
     ):
         self.on_token_expiry = on_token_expiry
+
+        # Store client_id for x-tidal-token fallback on public endpoints
+        from tidmon.core.auth_client import get_default_client_id
+        self._client_id = get_default_client_id()
+
         # Rate limiting: thread-safe fixed interval + jitter + adaptive delay
         safe_rpm = requests_per_minute if requests_per_minute > 0 else 50
         self._last_request_time: float = 0.0
@@ -139,9 +147,25 @@ class TidalClientImproved:
                     new_token = self.on_token_expiry(force=True)
                     if new_token:
                         log.info("Token refreshed successfully. Retrying request...")
-                        self.token = new_token  # Use setter to update headers
+                        self.token = new_token
                         return self.fetch(model, endpoint, params, api_version, _refreshed=True)
-                log.error("Token refresh failed or callback not provided. Aborting.")
+
+                # x-tidal-token fallback: retry public endpoints without Bearer
+                if not any(p in endpoint for p in _AUTH_REQUIRED):
+                    log.debug(f"401 on public endpoint {endpoint} — retrying with x-tidal-token")
+                    try:
+                        import requests as _req
+                        fb_headers = {k: v for k, v in self.session.headers.items()
+                                      if k.lower() != "authorization"}
+                        fb_headers["x-tidal-token"] = self._client_id
+                        fb_res = _req.get(url, params=params, headers=fb_headers, timeout=15)
+                        if fb_res.status_code == 200:
+                            self._rate_limit_delay = max(0.0, self._rate_limit_delay - 0.1)
+                            return model(**fb_res.json())
+                    except Exception as fb_e:
+                        log.debug(f"x-tidal-token fallback failed: {fb_e}")
+
+                log.error("Token refresh failed. Aborting.")
 
             if response.status_code == 429:
                 self._rate_limit_delay = min(5.0, self._rate_limit_delay + 1.0)
